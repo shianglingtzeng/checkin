@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Staff Check-In</title>
+<style>
+  :root{
+    --ink:#1c2b3a;
+    --paper:#f6f3ec;
+    --line:#d8d2c4;
+    --accent:#3a5a78;
+    --accent-soft:#e7edf2;
+    --good:#3f7a53;
+    --bad:#b5482f;
+    --warn:#a8791f;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family: -apple-system, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height:100vh;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding: 40px 16px;
+  }
+  .wrap{ width:100%; max-width:480px; }
+  .brand{
+    display:flex; align-items:baseline; justify-content:space-between;
+    margin-bottom:22px; padding-bottom:14px; border-bottom:2px solid var(--ink);
+  }
+  .brand h1{ font-size:19px; margin:0; letter-spacing:0.5px; }
+  .brand .clock{ font-family:var(--mono); font-size:13px; color:#5b6b78; }
+
+  .card{
+    background:#fff; border:1px solid var(--line); border-radius:2px;
+    padding:28px; margin-bottom:16px;
+  }
+
+  /* Login / forms */
+  .field{ margin-bottom:14px; }
+  .field label{ display:block; font-size:12px; color:#5b6b78; margin-bottom:6px; letter-spacing:0.3px; }
+  .field input, .field select{
+    width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:2px;
+    font-size:15px; background:#fdfcfa; font-family:inherit;
+  }
+  .field input:focus, .field select:focus{ outline:none; border-color:var(--accent); }
+  button{
+    width:100%; padding:13px; border:none; border-radius:2px; cursor:pointer;
+    font-size:15px; font-weight:600; letter-spacing:0.3px;
+  }
+  .btn-primary{ background:var(--ink); color:#fff; }
+  .btn-primary:hover{ background:#2c3e50; }
+  .btn-clockin{ background:var(--good); color:#fff; }
+  .btn-clockout{ background:var(--bad); color:#fff; }
+  .btn-ghost{ background:transparent; border:1px solid var(--line); color:var(--ink); }
+
+  .msg{ font-size:13px; margin-top:10px; }
+  .msg.err{ color:var(--bad); }
+  .msg.ok{ color:var(--good); }
+
+  .gate{
+    text-align:center; padding:40px 20px;
+  }
+  .gate .dot{
+    width:10px;height:10px;border-radius:50%;background:var(--bad);
+    display:inline-block; margin-right:8px;
+  }
+
+  .status-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:14px 0; border-bottom:1px solid var(--line);
+  }
+  .status-row:last-child{ border-bottom:none; }
+  .status-label{ font-size:13px; color:#5b6b78; }
+  .status-value{ font-family:var(--mono); font-size:14px; }
+  .pill{
+    display:inline-block; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:600;
+  }
+  .pill.in{ background:#e5f1e9; color:var(--good); }
+  .pill.out{ background:#f2e7e5; color:var(--bad); }
+
+  .log-item{
+    display:flex; justify-content:space-between; align-items:center; padding:9px 0;
+    border-bottom:1px solid #eee; font-size:13px;
+  }
+  .log-item .t{ font-family:var(--mono); color:#5b6b78; }
+
+  .top-actions{ display:flex; gap:8px; margin-bottom:10px; }
+  .top-actions button{ width:auto; padding:8px 14px; font-size:12px; }
+
+  table{ width:100%; border-collapse:collapse; font-size:13px; }
+  th,td{ text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); }
+  th{ color:#5b6b78; font-weight:600; font-size:12px; }
+  .hint{ font-size:12px; color:#8a8f94; margin-top:6px; line-height:1.6; }
+  .section-title{ font-size:13px; font-weight:700; letter-spacing:0.4px; margin:0 0 14px 0; color:var(--ink); }
+  .divider{ height:1px; background:var(--line); margin:20px 0; }
+
+  .banner{
+    background:#fdf3e2; border:1px solid #ecd08c; border-radius:2px;
+    padding:16px; margin-bottom:16px;
+  }
+  .banner-title{ font-weight:700; font-size:13px; margin-bottom:4px; color:var(--warn); }
+  .banner input[type=time]{
+    padding:9px 10px; border:1px solid var(--line); border-radius:2px; margin-right:8px; font-family:inherit; font-size:14px;
+  }
+  .banner button{ width:auto; padding:9px 16px; font-size:13px; margin-top:8px; background:var(--ink); color:#fff; }
+
+  .tag{
+    font-size:10px; padding:2px 7px; border-radius:10px; margin-left:6px; font-weight:700;
+    text-transform:uppercase; letter-spacing:0.3px;
+  }
+  .tag.late{ background:#f2e7e5; color:var(--bad); }
+  .tag.overtime{ background:#e7edf2; color:var(--accent); }
+
+  .del-btn{ width:auto; padding:3px 9px; font-size:11px; background:transparent; border:1px solid var(--line); color:#8a8f94; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand">
+    <h1>Staff Check-In</h1>
+    <span class="clock" id="liveClock">--:--:--</span>
+  </div>
+
+  <!-- IP GATE -->
+  <div id="ipGate" class="card gate" style="display:none;">
+    <div><span class="dot"></span><strong>You're not on an allowed network</strong></div>
+    <p class="hint">Please connect to the office network and refresh this page.<br>Detected IP: <span id="detectedIp" style="font-family:var(--mono);"></span></p>
+  </div>
+
+  <!-- LOGIN -->
+  <div id="loginCard" class="card" style="display:none;">
+    <p class="section-title">Log In</p>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="loginEmail" autocomplete="username" placeholder="you@company.com">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="loginPassword" autocomplete="current-password">
+    </div>
+    <button class="btn-primary" id="loginBtn">Log In</button>
+    <div class="msg err" id="loginMsg"></div>
+  </div>
+
+  <!-- MAIN (after login) -->
+  <div id="mainCard" style="display:none;">
+
+    <!-- Reminders -->
+    <div id="missedClockoutBanner" class="banner" style="display:none;"></div>
+    <div id="stillInBanner" class="banner" style="display:none;"></div>
+
+    <div class="card">
+      <div class="top-actions">
+        <span style="flex:1; font-size:14px; padding-top:6px;">Hello, <strong id="userName"></strong></span>
+        <button class="btn-ghost" id="logoutBtn">Log Out</button>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Current status</span>
+        <span id="currentStatus" class="pill out">Not clocked in</span>
+      </div>
+      <div class="status-row">
+        <span class="status-label">Last record</span>
+        <span class="status-value" id="lastAction">—</span>
+      </div>
+      <div style="margin-top:18px;">
+        <button id="clockBtn" class="btn-clockin">Clock In</button>
+      </div>
+      <div class="msg" id="clockMsg"></div>
+    </div>
+
+    <div class="card">
+      <p class="section-title">Today's log</p>
+      <div id="todayLog"></div>
+    </div>
+
+    <!-- ADMIN PANEL -->
+    <div class="card" id="adminCard" style="display:none;">
+      <p class="section-title">Admin panel — monthly summary</p>
+      <div class="field">
+        <label>Select month</label>
+        <input type="month" id="monthPicker">
+      </div>
+      <button class="btn-ghost" id="loadMonthBtn" style="margin-bottom:14px;">Load data</button>
+      <div id="holidaysInRange"></div>
+      <div id="monthSummary"></div>
+      <p class="hint">Hours are calculated as the time between each "Clock In" and the following "Clock Out". "Late" and "OT hrs" are based on the shift times set in the code. "Absent" counts weekdays with no clock-in that aren't a public holiday or approved leave day.</p>
+      <div class="divider"></div>
+      <button class="btn-ghost" id="exportCsvBtn">Export CSV</button>
+    </div>
+
+    <!-- LEAVE MANAGEMENT -->
+    <div class="card" id="leaveCard" style="display:none;">
+      <p class="section-title">Leave days</p>
+      <div class="field">
+        <label>Employee</label>
+        <select id="leaveEmail"></select>
+      </div>
+      <div class="field">
+        <label>Date</label>
+        <input type="date" id="leaveDate">
+      </div>
+      <div class="field">
+        <label>Note (optional)</label>
+        <input type="text" id="leaveNote" placeholder="Annual leave, sick day, etc.">
+      </div>
+      <button class="btn-ghost" id="addLeaveBtn" style="margin-bottom:14px;">Add leave day</button>
+      <p class="hint" style="margin-bottom:10px;">Leave days for the selected month above:</p>
+      <div id="leaveList"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+<script>
+/* ============================================================
+   1. Setup — paste in your own Firebase project details
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT",
+  storageBucket: "YOUR_PROJECT.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+
+/* Allowed office public IP addresses. If empty, the network is NOT restricted. */
+const ALLOWED_OFFICE_IPS = ["78.168.69.113"];
+
+/* Emails with admin access (can see monthly summary / leave management / export CSV) */
+const ADMIN_EMAILS = ["you@company.com"];
+
+/* All employee emails — used to populate the leave-day dropdown and to make sure
+   everyone shows up in the monthly summary even on days they didn't clock in. */
+const EMPLOYEE_EMAILS = ["employee1@company.com", "employee2@company.com", "employee3@company.com"];
+
+/* Expected shift times, used to flag late clock-ins and overtime clock-outs. */
+const SHIFT_START = "09:00";
+const SHIFT_END   = "18:00";
+const GRACE_MINUTES = 10; // minutes of grace after SHIFT_START before a clock-in counts as late
+
+/* Istanbul / Türkiye public holidays for 2026.
+   NOTE: Religious holidays (Ramadan Bayram / Kurban Bayram) follow the lunar calendar
+   and move every year — this list is specific to 2026 and needs updating each year. */
+const ISTANBUL_HOLIDAYS_2026 = [
+  {date:"2026-01-01", name:"New Year's Day"},
+  {date:"2026-03-19", name:"Ramadan Feast Eve (half day)"},
+  {date:"2026-03-20", name:"Ramadan Feast (Eid al-Fitr)"},
+  {date:"2026-03-21", name:"Ramadan Feast (Eid al-Fitr)"},
+  {date:"2026-03-22", name:"Ramadan Feast (Eid al-Fitr)"},
+  {date:"2026-04-23", name:"National Sovereignty and Children's Day"},
+  {date:"2026-05-01", name:"Labor and Solidarity Day"},
+  {date:"2026-05-19", name:"Commemoration of Atatürk, Youth and Sports Day"},
+  {date:"2026-05-26", name:"Sacrifice Feast Eve (half day)"},
+  {date:"2026-05-27", name:"Sacrifice Feast (Eid al-Adha)"},
+  {date:"2026-05-28", name:"Sacrifice Feast (Eid al-Adha)"},
+  {date:"2026-05-29", name:"Sacrifice Feast (Eid al-Adha)"},
+  {date:"2026-05-30", name:"Sacrifice Feast (Eid al-Adha)"},
+  {date:"2026-07-15", name:"Democracy and National Unity Day"},
+  {date:"2026-08-30", name:"Victory Day"},
+  {date:"2026-10-28", name:"Republic Day Eve (half day)"},
+  {date:"2026-10-29", name:"Republic Day"}
+];
+
+/* ============================================================ */
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// live clock
+function tickClock(){
+  document.getElementById('liveClock').textContent = new Date().toLocaleTimeString('en-GB', {hour12:false});
+}
+setInterval(tickClock, 1000); tickClock();
+
+// ---- time helpers ----
+function shiftToMinutes(hhmm){
+  const [h,m] = hhmm.split(':').map(Number);
+  return h*60+m;
+}
+function nowMinutes(){
+  const n = new Date();
+  return n.getHours()*60 + n.getMinutes();
+}
+function isWeekend(dateKey){
+  const d = new Date(dateKey+'T00:00:00Z');
+  const day = d.getUTCDay();
+  return day === 0 || day === 6;
+}
+function isHoliday(dateKey){
+  return ISTANBUL_HOLIDAYS_2026.some(h => h.date === dateKey);
+}
+function listWeekdaysInRange(start, end){
+  const days = [];
+  let d = new Date(start+'T00:00:00Z');
+  const endD = new Date(end+'T00:00:00Z');
+  while(d <= endD){
+    const key = d.toISOString().slice(0,10);
+    if(!isWeekend(key) && !isHoliday(key)) days.push(key);
+    d.setUTCDate(d.getUTCDate()+1);
+  }
+  return days;
+}
+
+// ---- IP gate ----
+async function checkIpAllowed(){
+  if (ALLOWED_OFFICE_IPS.length === 0) return true;
+  try{
+    const res = await fetch('https://api.ipify.org?format=json');
+    const data = await res.json();
+    document.getElementById('detectedIp').textContent = data.ip;
+    return ALLOWED_OFFICE_IPS.includes(data.ip);
+  }catch(e){
+    console.error('IP check failed', e);
+    return false;
+  }
+}
+
+async function init(){
+  const allowed = await checkIpAllowed();
+  if(!allowed){
+    document.getElementById('ipGate').style.display = 'block';
+    return;
+  }
+  document.getElementById('loginCard').style.display = 'block';
+}
+init();
+
+function populateEmployeeSelect(){
+  const sel = document.getElementById('leaveEmail');
+  if(!sel) return;
+  sel.innerHTML = EMPLOYEE_EMAILS.map(e => `<option value="${e}">${e}</option>`).join('');
+}
+populateEmployeeSelect();
+
+// default month picker to current month
+(function setDefaultMonth(){
+  const el = document.getElementById('monthPicker');
+  const now = new Date();
+  el.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+})();
+
+// ---- Auth ----
+document.getElementById('loginBtn').onclick = async () => {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pw = document.getElementById('loginPassword').value;
+  const msg = document.getElementById('loginMsg');
+  msg.textContent = '';
+  try{
+    await auth.signInWithEmailAndPassword(email, pw);
+  }catch(e){
+    msg.textContent = 'Login failed. Please check your email and password.';
+  }
+};
+
+document.getElementById('logoutBtn').onclick = () => auth.signOut();
+
+auth.onAuthStateChanged(async (user) => {
+  if(user){
+    document.getElementById('loginCard').style.display = 'none';
+    document.getElementById('mainCard').style.display = 'block';
+    document.getElementById('userName').textContent = user.email;
+    if(ADMIN_EMAILS.includes(user.email)){
+      document.getElementById('adminCard').style.display = 'block';
+      document.getElementById('leaveCard').style.display = 'block';
+    }
+    await refreshTodayStatus(user);
+    await checkMissedClockouts(user);
+  } else {
+    document.getElementById('mainCard').style.display = 'none';
+    document.getElementById('adminCard').style.display = 'none';
+    document.getElementById('leaveCard').style.display = 'none';
+  }
+});
+
+// ---- Clock in/out ----
+function todayKey(d = new Date()){
+  return d.toISOString().slice(0,10);
+}
+
+async function getLastActionToday(uid){
+  const snap = await db.collection('checkins')
+    .where('uid','==',uid)
+    .where('dateKey','==', todayKey())
+    .orderBy('timestamp','desc')
+    .limit(1).get();
+  if(snap.empty) return null;
+  return snap.docs[0].data();
+}
+
+async function refreshTodayStatus(user){
+  const last = await getLastActionToday(user.uid);
+  const statusEl = document.getElementById('currentStatus');
+  const lastEl = document.getElementById('lastAction');
+  const btn = document.getElementById('clockBtn');
+
+  if(!last || last.type === 'out'){
+    statusEl.textContent = 'Not clocked in';
+    statusEl.className = 'pill out';
+    btn.textContent = 'Clock In';
+    btn.className = 'btn-clockin';
+  } else {
+    statusEl.textContent = 'Clocked in';
+    statusEl.className = 'pill in';
+    btn.textContent = 'Clock Out';
+    btn.className = 'btn-clockout';
+  }
+  lastEl.textContent = last ? new Date(last.timestamp).toLocaleString('en-GB',{hour12:false}) + (last.type==='in' ? ' (Clock In)':' (Clock Out)') : '—';
+
+  checkStillClockedIn(last);
+  await renderTodayLog(user.uid);
+}
+
+function checkStillClockedIn(last){
+  const box = document.getElementById('stillInBanner');
+  const shiftEndMin = shiftToMinutes(SHIFT_END);
+  if(last && last.type === 'in' && nowMinutes() > shiftEndMin + 60){
+    box.style.display = 'block';
+    box.innerHTML = `<div class="banner-title">Still clocked in</div><p class="hint" style="margin-top:0;">Don't forget to clock out before you leave for the day.</p>`;
+  } else {
+    box.style.display = 'none';
+    box.innerHTML = '';
+  }
+}
+
+document.getElementById('clockBtn').onclick = async () => {
+  const user = auth.currentUser;
+  if(!user) return;
+  const clockMsg = document.getElementById('clockMsg');
+  clockMsg.className = 'msg';
+  clockMsg.textContent = '';
+  const last = await getLastActionToday(user.uid);
+  const nextType = (!last || last.type === 'out') ? 'in' : 'out';
+
+  const nMin = nowMinutes();
+  const extra = {};
+  if(nextType === 'in'){
+    const lateThreshold = shiftToMinutes(SHIFT_START) + GRACE_MINUTES;
+    const late = nMin > lateThreshold;
+    extra.late = late;
+    extra.lateMinutes = late ? nMin - shiftToMinutes(SHIFT_START) : 0;
+  } else {
+    const shiftEndMin = shiftToMinutes(SHIFT_END);
+    const overtime = nMin > shiftEndMin;
+    extra.overtime = overtime;
+    extra.overtimeMinutes = overtime ? nMin - shiftEndMin : 0;
+  }
+
+  try{
+    await db.collection('checkins').add({
+      uid: user.uid,
+      email: user.email,
+      type: nextType,
+      timestamp: Date.now(),
+      dateKey: todayKey(),
+      ...extra
+    });
+    clockMsg.className = 'msg ok';
+    clockMsg.textContent = nextType === 'in' ? 'Clocked in successfully.' : 'Clocked out successfully. Have a good rest!';
+    await refreshTodayStatus(user);
+  }catch(e){
+    clockMsg.className = 'msg err';
+    clockMsg.textContent = 'Something went wrong, please try again: ' + e.message;
+  }
+};
+
+async function renderTodayLog(uid){
+  const snap = await db.collection('checkins')
+    .where('uid','==',uid)
+    .where('dateKey','==', todayKey())
+    .orderBy('timestamp','asc').get();
+  const box = document.getElementById('todayLog');
+  if(snap.empty){ box.innerHTML = '<p class="hint">No records yet today</p>'; return; }
+  box.innerHTML = snap.docs.map(d => {
+    const v = d.data();
+    let tag = '';
+    if(v.type === 'in' && v.late) tag = `<span class="tag late">Late ${v.lateMinutes}m</span>`;
+    if(v.type === 'out' && v.overtime) tag = `<span class="tag overtime">OT ${(v.overtimeMinutes/60).toFixed(1)}h</span>`;
+    return `<div class="log-item"><span>${v.type === 'in' ? 'Clock In' : 'Clock Out'}${tag}</span><span class="t">${new Date(v.timestamp).toLocaleTimeString('en-GB',{hour12:false})}</span></div>`;
+  }).join('');
+}
+
+// ---- Missed clock-out reminder ----
+async function checkMissedClockouts(user){
+  const since = new Date(Date.now() - 14*24*3600000);
+  const sinceKey = todayKey(since);
+  const snap = await db.collection('checkins')
+    .where('uid','==',user.uid)
+    .where('dateKey','>=', sinceKey)
+    .get();
+  const byDay = {};
+  snap.docs.forEach(d => {
+    const v = d.data();
+    (byDay[v.dateKey] = byDay[v.dateKey] || []).push(v);
+  });
+  const today = todayKey();
+  const missed = [];
+  Object.entries(byDay).forEach(([dateKey, list]) => {
+    if(dateKey === today) return;
+    list.sort((a,b) => a.timestamp - b.timestamp);
+    if(list[list.length-1].type === 'in') missed.push(dateKey);
+  });
+  missed.sort();
+  renderMissedClockoutBanner(missed);
+}
+
+function renderMissedClockoutBanner(missed){
+  const box = document.getElementById('missedClockoutBanner');
+  if(missed.length === 0){ box.style.display = 'none'; box.innerHTML=''; return; }
+  const dateKey = missed[0];
+  box.style.display = 'block';
+  box.innerHTML = `
+    <div class="banner-title">You forgot to clock out on ${dateKey}</div>
+    <p class="hint" style="margin-top:0;">What time did you actually leave that day? ${missed.length > 1 ? `(${missed.length} days need confirming)` : ''}</p>
+    <input type="time" id="missedTimeInput" value="${SHIFT_END}">
+    <button id="submitMissedBtn">Confirm clock-out</button>
+  `;
+  document.getElementById('submitMissedBtn').onclick = async () => {
+    const t = document.getElementById('missedTimeInput').value || SHIFT_END;
+    const [hh,mm] = t.split(':').map(Number);
+    const d = new Date(dateKey+'T00:00:00');
+    d.setHours(hh, mm, 0, 0);
+    const shiftEndMin = shiftToMinutes(SHIFT_END);
+    const actualMin = hh*60+mm;
+    const overtime = actualMin > shiftEndMin;
+    const user = auth.currentUser;
+    await db.collection('checkins').add({
+      uid: user.uid, email: user.email, type: 'out',
+      timestamp: d.getTime(), dateKey,
+      overtime, overtimeMinutes: overtime ? actualMin-shiftEndMin : 0,
+      backfilled: true
+    });
+    await checkMissedClockouts(user);
+  };
+}
+
+// ---- Admin: leave management ----
+document.getElementById('addLeaveBtn').onclick = async () => {
+  const email = document.getElementById('leaveEmail').value;
+  const dateKey = document.getElementById('leaveDate').value;
+  const note = document.getElementById('leaveNote').value.trim();
+  if(!email || !dateKey){ alert('Please choose an employee and a date.'); return; }
+  await db.collection('leave').add({ email, dateKey, note, createdAt: Date.now() });
+  document.getElementById('leaveNote').value = '';
+  document.getElementById('loadMonthBtn').click();
+};
+
+function renderLeaveList(leaveRecords){
+  const box = document.getElementById('leaveList');
+  if(leaveRecords.length === 0){ box.innerHTML = '<p class="hint">No leave recorded this month.</p>'; return; }
+  box.innerHTML = leaveRecords.map(l =>
+    `<div class="log-item"><span>${l.email} — ${l.dateKey}${l.note ? ' ('+l.note+')' : ''}</span><button class="del-btn" data-id="${l.id}">Remove</button></div>`
+  ).join('');
+  box.querySelectorAll('.del-btn').forEach(btn => {
+    btn.onclick = async () => {
+      await db.collection('leave').doc(btn.dataset.id).delete();
+      document.getElementById('loadMonthBtn').click();
+    };
+  });
+}
+
+function renderHolidaysInRange(start, end){
+  const box = document.getElementById('holidaysInRange');
+  const inRange = ISTANBUL_HOLIDAYS_2026.filter(h => h.date >= start && h.date <= end);
+  if(inRange.length === 0){ box.innerHTML = '<p class="hint">No public holidays this month.</p>'; return; }
+  box.innerHTML = '<p class="hint"><strong>Public holidays:</strong> ' +
+    inRange.map(h => `${h.date} — ${h.name}`).join('; ') + '</p>';
+}
+
+// ---- Admin: monthly summary ----
+document.getElementById('loadMonthBtn').onclick = async () => {
+  const monthVal = document.getElementById('monthPicker').value;
+  if(!monthVal) return;
+  const [y,m] = monthVal.split('-');
+  const start = `${y}-${m}-01`;
+  const lastDay = new Date(parseInt(y), parseInt(m), 0).getDate();
+  const end = `${y}-${m}-${String(lastDay).padStart(2,'0')}`;
+
+  const snap = await db.collection('checkins')
+    .where('dateKey','>=', start)
+    .where('dateKey','<=', end)
+    .orderBy('dateKey','asc').get();
+  const records = snap.docs.map(d => d.data());
+
+  const leaveSnap = await db.collection('leave')
+    .where('dateKey','>=', start)
+    .where('dateKey','<=', end).get();
+  const leaveRecords = leaveSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  window.__lastMonthRecords = records;
+  window.__lastMonthLeave = leaveRecords;
+
+  renderHolidaysInRange(start, end);
+  renderMonthSummary(records, leaveRecords, start, end);
+  renderLeaveList(leaveRecords);
+};
+
+function computeAttendance(records, leaveRecords, start, end){
+  const employees = EMPLOYEE_EMAILS.length ? EMPLOYEE_EMAILS : [...new Set(records.map(r => r.email))];
+  const weekdays = listWeekdaysInRange(start, end);
+  const result = {};
+
+  employees.forEach(email => {
+    const empRecords = records.filter(r => r.email === email);
+    const byDay = {};
+    empRecords.forEach(r => { (byDay[r.dateKey] = byDay[r.dateKey] || []).push(r); });
+
+    let hours = 0, lateCount = 0, overtimeHours = 0;
+    const presentDays = new Set();
+
+    Object.entries(byDay).forEach(([dateKey, list]) => {
+      list.sort((a,b) => a.timestamp - b.timestamp);
+      let openIn = null;
+      list.forEach(r => {
+        if(r.type === 'in'){
+          openIn = r.timestamp;
+          presentDays.add(dateKey);
+          if(r.late) lateCount++;
+        } else if(r.type === 'out' && openIn){
+          hours += (r.timestamp - openIn) / 3600000;
+          if(r.overtime) overtimeHours += (r.overtimeMinutes || 0) / 60;
+          openIn = null;
+        }
+      });
+    });
+
+    const leaveDays = new Set(leaveRecords.filter(l => l.email === email).map(l => l.dateKey));
+    const expectedDays = weekdays.filter(d => !leaveDays.has(d));
+    const absentDays = expectedDays.filter(d => !presentDays.has(d));
+
+    result[email] = {
+      hours, lateCount, overtimeHours,
+      leave: leaveDays.size,
+      absent: absentDays.length
+    };
+  });
+
+  return result;
+}
+
+function renderMonthSummary(records, leaveRecords, start, end){
+  const stats = computeAttendance(records, leaveRecords, start, end);
+  const box = document.getElementById('monthSummary');
+  const emails = Object.keys(stats);
+  if(emails.length === 0){
+    box.innerHTML = '<p class="hint">No data for this month</p>';
+    return;
+  }
+  const rows = emails.map(email => {
+    const s = stats[email];
+    return `<tr>
+      <td>${email}</td>
+      <td>${s.hours.toFixed(1)}</td>
+      <td>${s.lateCount}</td>
+      <td>${s.overtimeHours.toFixed(1)}</td>
+      <td>${s.leave}</td>
+      <td>${s.absent}</td>
+    </tr>`;
+  }).join('');
+  box.innerHTML = `<table>
+    <tr><th>Employee</th><th>Hours</th><th>Late</th><th>OT hrs</th><th>Leave</th><th>Absent</th></tr>
+    ${rows}
+  </table>`;
+}
+
+document.getElementById('exportCsvBtn').onclick = () => {
+  const records = window.__lastMonthRecords || [];
+  if(records.length === 0){ alert('Please load a month first.'); return; }
+  let csv = 'email,type,date,time,late,late_minutes,overtime,overtime_minutes\n';
+  records.forEach(r => {
+    const d = new Date(r.timestamp);
+    csv += `${r.email},${r.type},${r.dateKey},${d.toLocaleTimeString('en-GB',{hour12:false})},${r.late?'yes':'no'},${r.lateMinutes||0},${r.overtime?'yes':'no'},${r.overtimeMinutes||0}\n`;
+  });
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'checkins.csv'; a.click();
+};
+</script>
+</body>
+</html>
