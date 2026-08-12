@@ -158,7 +158,10 @@
   .tabbar{ display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap; }
   .quota-cards{ display:flex; gap:12px; flex-wrap:wrap; }
   .quota-card{ flex:1; min-width:130px; border:1px solid var(--line); border-radius:8px; padding:14px; text-align:center; background:#fff; }
-  .quota-card .qt{ font-size:12px; color:#5b6b78; margin-bottom:6px; }
+  .quota-card .qt{ font-size:12px; color:#5b6b78; margin-bottom:2px; }
+  .quota-card .qtag{ font-size:10px; font-weight:700; letter-spacing:0.3px; margin-bottom:6px; display:inline-block;
+                     padding:2px 8px; border-radius:10px; background:var(--navy-soft); color:var(--navy); }
+  .quota-card .qtag.acc{ background:#fdf3e2; color:var(--warn); }
   .quota-card .qv{ font-size:20px; font-weight:800; font-family:var(--mono); color:var(--navy); }
   .quota-card .qv.low{ color:var(--bad); }
   .quota-card .qsub{ font-size:11px; color:#8a94a0; margin-top:3px; }
@@ -236,7 +239,11 @@
   .dp-day.empty{ cursor:default; }
   .dp-day.sel{ background:var(--navy); color:#fff; font-weight:700; }
   .dp-day.today:not(.sel){ box-shadow:0 0 0 1px var(--navy) inset; }
-  .tp-pop{ width:220px; display:flex; gap:6px; }
+  .tp-pop{ width:236px; }
+  .tp-pop.open{ display:block; }
+  .tp-cols{ display:flex; gap:6px; }
+  .tp-done{ margin-top:8px; }
+  .tp-done button{ width:100%; padding:8px; font-size:12px; background:var(--navy); color:#fff; }
   .tp-col{ flex:1; }
   .tp-label{ font-size:11px; color:#8a94a0; text-align:center; margin-bottom:4px; font-weight:700; }
   .tp-list{ max-height:160px; overflow-y:auto; border:1px solid var(--line); border-radius:6px; }
@@ -321,6 +328,7 @@
         <div class="card">
           <p class="section-title" data-i18n="leave_balance_title">我的休假額度</p>
           <div class="quota-cards" id="empQuotaCards"></div>
+          <p class="hint" data-i18n="leave_rule">請假一律先扣特休的剩餘額度；特休用完之後，超出的時數才會記到病假／事假的累計，累計沒有上限。</p>
         </div>
         <div class="card">
           <p class="section-title" data-i18n="apply_leave">申請請假</p>
@@ -501,12 +509,12 @@ const ADMIN_PW = "03702716";   // 主控端共用密碼
 
 const EMPLOYEES = {
   /* 員工：密碼＝Email */
-  "0001": { id:"0001", role:"employee", name:"Osman", email:"osman@taitra.org.tw", empNo:"0001", photoUrl:"", quota:{annual:112, sick:64, personal:56} },
-  "0002": { id:"0002", role:"employee", name:"Murat", email:"murat@taitra.org.tw", empNo:"0002", photoUrl:"", quota:{annual:112, sick:64, personal:56} },
-  "0003": { id:"0003", role:"employee", name:"Donus", email:"donus@taitra.org.tw", empNo:"0003", photoUrl:"", quota:{annual:112, sick:64, personal:56} },
+  "0001": { id:"0001", role:"employee", name:"Osman", email:"osman@taitra.org.tw", empNo:"0001", photoUrl:"", quota:{annual:112, sick:0, personal:0} },
+  "0002": { id:"0002", role:"employee", name:"Murat", email:"murat@taitra.org.tw", empNo:"0002", photoUrl:"", quota:{annual:112, sick:0, personal:0} },
+  "0003": { id:"0003", role:"employee", name:"Donus", email:"donus@taitra.org.tw", empNo:"0003", photoUrl:"", quota:{annual:112, sick:0, personal:0} },
   /* 主控端：密碼＝ADMIN_PW（不是 Email）。Email 欄留空即可，要填也行。 */
-  "0004": { id:"0004", role:"admin",    name:"EVA",   email:"", pw:ADMIN_PW, empNo:"0004", photoUrl:"", quota:{annual:112, sick:64, personal:56} },
-  "0005": { id:"0005", role:"admin",    name:"Tasha", email:"", pw:ADMIN_PW, empNo:"0005", photoUrl:"", quota:{annual:112, sick:64, personal:56} }
+  "0004": { id:"0004", role:"admin",    name:"EVA",   email:"", pw:ADMIN_PW, empNo:"0004", photoUrl:"", quota:{annual:112, sick:0, personal:0} },
+  "0005": { id:"0005", role:"admin",    name:"Tasha", email:"", pw:ADMIN_PW, empNo:"0005", photoUrl:"", quota:{annual:112, sick:0, personal:0} }
 };
 /* 沒有指定 pw 的人，密碼就等於 email */
 Object.keys(EMPLOYEES).forEach(k=>{ if(!EMPLOYEES[k].pw) EMPLOYEES[k].pw = EMPLOYEES[k].email; });
@@ -560,7 +568,7 @@ const I18N = {
     from_time:"起", to_time:"迄", submit_request:"送出申請", my_requests:"我的假單",
     admin_leave_title:"請假審核 — 全部假單", filter_status:"狀態篩選",
     f_all:"全部", f_pending:"待審核", f_approved:"已核准", f_rejected:"已駁回",
-    review_hint:"核准後才會從對應額度扣抵；駁回不扣。三種額度各自獨立計算。",
+    review_hint:"核准後才會扣抵，駁回不扣。扣抵順序：一律先扣特休剩餘額度，扣完之後超出的時數才記入病假／事假的累計。",
     type_annual:"特休", type_sick:"病假", type_personal:"事假",
     m_sick:"病假", st_sick:"病假", st_missing:"缺卡",
     calc_hours:"計算時數", time_range:"時段", note_col:"備註", no_requests:"目前沒有假單",
@@ -568,6 +576,8 @@ const I18N = {
     rs_pending:"待審核", rs_approved:"已核准", rs_rejected:"已駁回",
     approve:"核准", reject:"駁回", reset:"改回待審", days_unit:"天",
     q_annual:"特休額度(時)", q_sick:"病假額度(時)", q_personal:"事假額度(時)",
+    q_remaining:"剩餘", q_accrued:"累計已請", done:"完成",
+    leave_rule:"請假一律先扣特休的剩餘額度；特休用完之後，超出的時數才會記到病假／事假的累計，累計沒有上限。",
     date:"日期", employee:"員工", note_opt:"備註（選填）",
     am:"上午", pm:"下午", dp_hour:"時", dp_minute:"分", dp_period:"上午/下午"
   },
@@ -617,7 +627,7 @@ const I18N = {
     from_time:"From", to_time:"To", submit_request:"Submit", my_requests:"My requests",
     admin_leave_title:"Leave review — all requests", filter_status:"Filter status",
     f_all:"All", f_pending:"Pending", f_approved:"Approved", f_rejected:"Rejected",
-    review_hint:"Only approved requests deduct from the matching quota; rejected ones don't. The three quotas are counted independently.",
+    review_hint:"Only approved requests count; rejected ones don't. Order: annual leave is always used first, and only the hours beyond it are added to the sick / personal running totals.",
     type_annual:"Annual", type_sick:"Sick", type_personal:"Personal",
     m_sick:"Sick leave", st_sick:"Sick", st_missing:"Missing",
     calc_hours:"Hours", time_range:"Time", note_col:"Note", no_requests:"No requests yet",
@@ -625,6 +635,8 @@ const I18N = {
     rs_pending:"Pending", rs_approved:"Approved", rs_rejected:"Rejected",
     approve:"Approve", reject:"Reject", reset:"Reset", days_unit:"d",
     q_annual:"Annual (h)", q_sick:"Sick (h)", q_personal:"Personal (h)",
+    q_remaining:"Remaining", q_accrued:"Accrued", done:"Done",
+    leave_rule:"Leave always draws on your remaining annual balance first. Once annual runs out, the extra hours are added to the sick / personal running totals, which have no cap.",
     date:"Date", employee:"Employee", note_opt:"Note (optional)",
     am:"AM", pm:"PM", dp_hour:"Hour", dp_minute:"Min", dp_period:"AM/PM"
   }
@@ -670,14 +682,32 @@ function dayStatus(id,date){
   if(BIZ_MARKS[`${id}|${date}`]) return 'business';
   return 'work';
 }
-/* 已核准的請假時數（依類別加總）— 用於額度扣抵 */
+function quotaOf(empId,type){ const e=EMPLOYEES[empId]; return (e&&e.quota&&e.quota[type]!=null)?e.quota[type]:0; }
+/* 已核准的請假時數（依類別加總，未分攤前的原始值） */
 function usedLeaveHours(empId,type){
   return LEAVE_REQUESTS
     .filter(r=>r.empId===empId && r.type===type && r.status==='approved')
     .reduce((s,r)=>s+r.hours,0);
 }
-function quotaOf(empId,type){ const e=EMPLOYEES[empId]; return (e&&e.quota&&e.quota[type]!=null)?e.quota[type]:0; }
-function remainingLeave(empId,type){ return quotaOf(empId,type)-usedLeaveHours(empId,type); }
+/* ---- 休假帳本 ----
+   規則：不管請哪一種假，一律先扣「特休（個人休假）」的剩餘額度；
+         特休扣完之後，超出的時數才依假別記到「病假／事假」的累計裡（累計沒有上限）。 */
+function leaveLedger(empId){
+  const annualQuota=quotaOf(empId,'annual');
+  let left=annualQuota;
+  const acc={sick:0, personal:0};
+  LEAVE_REQUESTS
+    .filter(r=>r.empId===empId && r.status==='approved')
+    .sort((a,b)=> a.date===b.date ? a.reqId-b.reqId : (a.date<b.date?-1:1))
+    .forEach(r=>{
+      const fromAnnual=Math.min(left, r.hours);
+      left-=fromAnnual;
+      const rest=r.hours-fromAnnual;
+      if(rest>0) acc[r.type==='sick'?'sick':'personal']+=rest;
+    });
+  return { annualQuota, annualLeft:left, annualUsed:annualQuota-left, sick:acc.sick, personal:acc.personal };
+}
+function remainingLeave(empId){ return leaveLedger(empId).annualLeft; }
 (function seed(){
   const now=new Date();
   const y=now.getFullYear(), m=now.getMonth();
@@ -946,17 +976,32 @@ function populateReqTypeSelect(){
   const sel=document.getElementById('reqType');
   sel.innerHTML=LEAVE_TYPES.map(ty=>`<option value="${ty}">${typeLabel(ty)}</option>`).join('');
 }
+function dayStr(h){ return (h/HOURS_PER_DAY).toFixed(h%HOURS_PER_DAY?1:0); }
+function quotaCardsHtml(id){
+  const L=leaveLedger(id);
+  return `
+    <div class="quota-card">
+      <div class="qt type-annual">${t('type_annual')}</div>
+      <div class="qtag">${t('q_remaining')}</div>
+      <div class="qv ${L.annualLeft<=HOURS_PER_DAY?'low':''}">${dayStr(L.annualLeft)} ${t('days_unit')}</div>
+      <div class="qsub">${L.annualLeft} / ${L.annualQuota} ${t('hours_unit')}</div>
+    </div>
+    <div class="quota-card">
+      <div class="qt type-sick">${t('type_sick')}</div>
+      <div class="qtag acc">${t('q_accrued')}</div>
+      <div class="qv">${L.sick} ${t('hours_unit')}</div>
+      <div class="qsub">${dayStr(L.sick)} ${t('days_unit')}</div>
+    </div>
+    <div class="quota-card">
+      <div class="qt type-personal">${t('type_personal')}</div>
+      <div class="qtag acc">${t('q_accrued')}</div>
+      <div class="qv">${L.personal} ${t('hours_unit')}</div>
+      <div class="qsub">${dayStr(L.personal)} ${t('days_unit')}</div>
+    </div>`;
+}
 function renderEmpLeavePage(id){
   populateReqTypeSelect();
-  const cards=LEAVE_TYPES.map(ty=>{
-    const rem=remainingLeave(id,ty), q=quotaOf(id,ty);
-    return `<div class="quota-card">
-      <div class="qt type-${ty}">${typeLabel(ty)}</div>
-      <div class="qv ${rem<=8?'low':''}">${(rem/HOURS_PER_DAY).toFixed(rem%HOURS_PER_DAY?1:0)} ${t('days_unit')}</div>
-      <div class="qsub">${rem} / ${q} ${t('hours_unit')}</div>
-    </div>`;
-  }).join('');
-  document.getElementById('empQuotaCards').innerHTML=cards;
+  document.getElementById('empQuotaCards').innerHTML=quotaCardsHtml(id);
   initDatePicker('reqDate','reqDateWrap');
   initTimePicker('reqStart','reqStartWrap');
   initTimePicker('reqEnd','reqEndWrap');
@@ -968,7 +1013,13 @@ function renderEmpLeavePage(id){
 function closeAllPickers(except){
   document.querySelectorAll('.dp-pop.open,.tp-pop.open').forEach(p=>{ if(p!==except) p.classList.remove('open'); });
 }
-document.addEventListener('click',()=>closeAllPickers());
+/* 捕獲階段：不管內層有沒有 stopPropagation，點到選擇器以外的地方一定收起來 */
+document.addEventListener('click',(e)=>{
+  const inside = e.target && e.target.closest && e.target.closest('.dp-wrap,.tp-wrap');
+  if(!inside) closeAllPickers();
+}, true);
+document.addEventListener('keydown',(e)=>{ if(e.key==='Escape') closeAllPickers(); });
+window.addEventListener('scroll',()=>closeAllPickers(), true);
 
 function fmtDateDisplay(dateStr){
   if(!dateStr) return LANG==='zh-Hant' ? '請選擇日期' : 'Select date';
@@ -1009,9 +1060,11 @@ function initDatePicker(hiddenId, wrapId){
           <button type="button" id="${wrapId}_next">&rsaquo;</button>
         </div>
         <div class="dp-grid">${daysHtml}</div>
+        <div class="tp-done"><button type="button" id="${wrapId}_done">✓ ${t('done')}</button></div>
       </div>`;
     const btn=document.getElementById(`${wrapId}_btn`), pop=document.getElementById(`${wrapId}_pop`);
     btn.onclick=(e)=>{ e.stopPropagation(); const willOpen=!pop.classList.contains('open'); closeAllPickers(); if(willOpen) pop.classList.add('open'); };
+    document.getElementById(`${wrapId}_done`).onclick=(e)=>{ e.stopPropagation(); closeAllPickers(); };
     document.getElementById(`${wrapId}_prev`).onclick=(e)=>{ e.stopPropagation(); vm--; if(vm<0){vm=11;vy--;} render(); document.getElementById(`${wrapId}_pop`).classList.add('open'); };
     document.getElementById(`${wrapId}_next`).onclick=(e)=>{ e.stopPropagation(); vm++; if(vm>11){vm=0;vy++;} render(); document.getElementById(`${wrapId}_pop`).classList.add('open'); };
     wrap.querySelectorAll('.dp-day[data-date]').forEach(el=>{
@@ -1052,12 +1105,16 @@ function initTimePicker(hiddenId, wrapId){
     wrap.innerHTML = `
       <button type="button" class="tp-btn" id="${wrapId}_btn"><span>${fmtDisplay(hidden.value)}</span><span class="ic">&#128336;</span></button>
       <div class="tp-pop" id="${wrapId}_pop">
-        <div class="tp-col"><div class="tp-label">${t('dp_hour')}</div><div class="tp-list">${hoursHtml}</div></div>
-        <div class="tp-col"><div class="tp-label">${t('dp_minute')}</div><div class="tp-list">${minsHtml}</div></div>
-        <div class="tp-col"><div class="tp-label">${t('dp_period')}</div><div class="tp-list">${periodHtml}</div></div>
+        <div class="tp-cols">
+          <div class="tp-col"><div class="tp-label">${t('dp_hour')}</div><div class="tp-list">${hoursHtml}</div></div>
+          <div class="tp-col"><div class="tp-label">${t('dp_minute')}</div><div class="tp-list">${minsHtml}</div></div>
+          <div class="tp-col"><div class="tp-label">${t('dp_period')}</div><div class="tp-list">${periodHtml}</div></div>
+        </div>
+        <div class="tp-done"><button type="button" id="${wrapId}_done">✓ ${t('done')}</button></div>
       </div>`;
     const btn=document.getElementById(`${wrapId}_btn`), pop=document.getElementById(`${wrapId}_pop`);
     btn.onclick=(e)=>{ e.stopPropagation(); const willOpen=!pop.classList.contains('open'); closeAllPickers(); if(willOpen) pop.classList.add('open'); };
+    document.getElementById(`${wrapId}_done`).onclick=(e)=>{ e.stopPropagation(); closeAllPickers(); };
     function pick(nh12,nperiod,nm){
       hidden.value=to24(nh12,nperiod,nm);
       hidden.dispatchEvent(new Event('change'));
@@ -1385,7 +1442,7 @@ document.getElementById('modalSave').onclick=()=>{
 
 /* --- 員工設定（可新增、可改編號/密碼/照片/姓名）--- */
 function empEditForm(id, isNew){
-  const e = isNew ? {id:'',name:'',email:'',pw:'',role:'employee',photoUrl:'',quota:{annual:112,sick:64,personal:56}} : EMPLOYEES[id];
+  const e = isNew ? {id:'',name:'',email:'',pw:'',role:'employee',photoUrl:'',quota:{annual:112,sick:0,personal:0}} : EMPLOYEES[id];
   const key = isNew ? 'new' : id;
   return `<div class="subcard" id="edit_${key}" style="display:${isNew?'block':'none'};">
       <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
@@ -1408,11 +1465,7 @@ function empEditForm(id, isNew){
               <option value="admin" ${e.role==='admin'?'selected':''}>${t('role_admin')}</option>
             </select>
           </div>
-          <div style="display:flex; gap:8px;">
-            <div class="field" style="flex:1;"><label>${t('q_annual')}</label><input id="qa_${key}" type="number" min="0" step="8" value="${(e.quota&&e.quota.annual!=null)?e.quota.annual:112}"></div>
-            <div class="field" style="flex:1;"><label>${t('q_sick')}</label><input id="qs_${key}" type="number" min="0" step="8" value="${(e.quota&&e.quota.sick!=null)?e.quota.sick:64}"></div>
-            <div class="field" style="flex:1;"><label>${t('q_personal')}</label><input id="qp_${key}" type="number" min="0" step="8" value="${(e.quota&&e.quota.personal!=null)?e.quota.personal:56}"></div>
-          </div>
+          <div class="field"><label>${t('q_annual')}</label><input id="qa_${key}" type="number" min="0" step="8" value="${(e.quota&&e.quota.annual!=null)?e.quota.annual:112}"></div>
         </div>
       </div>
       <div style="display:flex; gap:10px; margin-top:6px;">
@@ -1479,11 +1532,7 @@ window.saveEmp=(id)=>{
     role:document.getElementById('role_'+id).value,
     empNo:e.empNo,
     photoUrl:document.getElementById('photodata_'+id).value,
-    quota:{
-      annual:parseInt(document.getElementById('qa_'+id).value,10)||0,
-      sick:parseInt(document.getElementById('qs_'+id).value,10)||0,
-      personal:parseInt(document.getElementById('qp_'+id).value,10)||0
-    }
+    quota:{ annual:parseInt(document.getElementById('qa_'+id).value,10)||0, sick:0, personal:0 }
   };
   if(newId!==id){
     // 換編號＝換帳號：重新 key，並搬移該員工的打卡/休假/公出資料
@@ -1510,11 +1559,7 @@ window.addEmployee=()=>{
     id, name:document.getElementById('name_new').value.trim()||('Staff '+id),
     email, pw:customPw||email, role:document.getElementById('role_new').value, empNo:id,
     photoUrl:document.getElementById('photodata_new').value,
-    quota:{
-      annual:parseInt(document.getElementById('qa_new').value,10)||0,
-      sick:parseInt(document.getElementById('qs_new').value,10)||0,
-      personal:parseInt(document.getElementById('qp_new').value,10)||0
-    }
+    quota:{ annual:parseInt(document.getElementById('qa_new').value,10)||0, sick:0, personal:0 }
   };
   document.getElementById('addFormSlot').innerHTML='';
   renderEmpAdmin(); renderMonthCalendar(); renderDaily();
