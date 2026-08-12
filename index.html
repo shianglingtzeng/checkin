@@ -97,6 +97,15 @@
   .msg.err{ color:var(--bad); }
   .demo-accounts{ font-size:12px; color:#5b6b78; background:var(--navy-soft); border-radius:6px; padding:10px 12px; margin-top:14px; line-height:1.8; }
   .demo-accounts b{ color:var(--navy); }
+  .ip-banner{
+    font-size:12px; border-radius:6px; padding:8px 11px; margin:0 0 14px;
+    border:1px solid var(--line); background:#f7f9fc; color:#5b6b78; line-height:1.6;
+  }
+  .ip-banner.ok{ background:var(--good-bg); border-color:#bfe3cd; color:var(--good); }
+  .ip-banner.blocked{ background:#fbe6e2; border-color:#f0c8c0; color:var(--bad); }
+  .ip-banner.error{ background:#fdf3e2; border-color:#e8d29a; color:var(--warn); }
+  .ip-banner b{ font-family:var(--mono); }
+  .login-top{ display:flex; justify-content:flex-end; margin:-8px 0 4px; }
 
   /* ---- Identity ---- */
   .ident{ display:flex; align-items:center; gap:14px; }
@@ -239,37 +248,35 @@
 <body>
 <div class="page"><div class="wrap">
 
-  <div class="demo-flag" id="demoFlag">🧪 樣本測試版 — 使用假資料，不會寫入 Firebase。打卡按鈕僅在畫面上模擬。</div>
+  <div class="demo-flag" id="demoFlag" data-i18n="demo_flag">🧪 樣本測試版 — 使用假資料，不會寫入 Firebase。打卡按鈕僅在畫面上模擬。</div>
 
   <!-- ===== LOGIN ===== -->
   <div id="loginView">
     <div class="card">
+      <div class="login-top"><button class="lang-toggle" id="langToggleLogin">EN</button></div>
       <div class="login-logo">
         <img id="loginLogo" alt="LOGO">
-        <div class="t">員工打卡系統</div>
+        <div class="t" data-i18n="sys_title">員工打卡系統</div>
+      </div>
+      <div class="ip-banner" id="ipBanner">…</div>
+      <div class="field">
+        <label data-i18n="login_user">姓名（或四碼員工編號）</label>
+        <input type="text" id="loginId" placeholder="osman" autocomplete="username" autocapitalize="none">
       </div>
       <div class="field">
-        <label data-i18n="emp_id">員工編號（四碼）</label>
-        <input type="text" id="loginId" inputmode="numeric" maxlength="4" placeholder="0001">
-      </div>
-      <div class="field">
-        <label data-i18n="password">密碼</label>
-        <input type="password" id="loginPw" placeholder="••••••••">
+        <label data-i18n="login_pw_email">密碼（員工＝你的 Email）</label>
+        <input type="password" id="loginPw" placeholder="name@company.com" autocomplete="current-password" autocapitalize="none">
       </div>
       <button class="btn-primary" id="loginBtn" data-i18n="login_btn">登入</button>
       <div class="msg err" id="loginMsg"></div>
-      <div class="demo-accounts">
-        <div>🔑 <b>測試帳號</b>（點右側可自動帶入）</div>
-        <div>主控端　<b>0001</b> / 03702716　<button class="btn-mini" onclick="fill('0001')">帶入</button></div>
-        <div>員工　　<b>0002</b> / 03702716　<button class="btn-mini" onclick="fill('0002')">帶入</button></div>
-      </div>
+      <div class="demo-accounts" data-i18n="login_help">用你的名字登入（大小寫不拘）。員工的密碼是自己的公司 Email；主控端請用另外提供的密碼。</div>
     </div>
   </div>
 
   <!-- ===== APP (after login) ===== -->
   <div id="appView" style="display:none;">
     <div class="topbar">
-      <div class="brand"><img id="brandLogo" alt=""><h1>員工打卡系統</h1></div>
+      <div class="brand"><img id="brandLogo" alt=""><h1 data-i18n="sys_title">員工打卡系統</h1></div>
       <div class="topbar-right">
         <span class="clock" id="liveClock">--:--:--</span>
         <span class="role-badge" id="roleBadge">—</span>
@@ -376,13 +383,13 @@
           <b id="calTotal">00:00:00</b>
         </div>
         <div class="legend">
-          <span><i class="dot green"></i><span data-i18n="lg_green">有上下打卡（綠燈，計 8 小時）</span></span>
+          <span><i class="dot green"></i><span data-i18n="lg_green">出勤完整（有上、下班紀錄）</span></span>
           <span><i class="dot red"></i><span data-i18n="lg_red">缺打卡（紅字）</span></span>
           <span><i class="dot leave"></i><span data-i18n="lg_leave">休假（主控端標記）</span></span>
           <span><i class="dot" style="background:#1665c0"></i><span data-i18n="lg_biz">公出（可填時間）</span></span>
           <span><i class="dot" style="background:#c07a1a"></i><span data-i18n="st_sick">病假</span></span>
         </div>
-        <p class="hint" data-i18n="month_hint">工時 = 當天最晚下班 − 最早上班（樣本未扣午休）。休假請在「每日狀況」分頁標記。</p>
+        <p class="hint" data-i18n="month_hint">休假／病假／公出請在「每日狀況」分頁編輯；細部請假時數用「請假審核」分頁管理。</p>
       </div>
 
       <!-- Daily status -->
@@ -475,26 +482,60 @@ const LUNCH_START="13:00", LUNCH_END="13:30";  // 午休（扣除）
 const FULL_HOURS=8;   // 標準工時（扣午休後）
 const MIN_HOURS=8;
 const GRACE_MINUTES=10;   // 遲到緩衝：超過窗尾 08:30 再加 10 分（08:40）才算遲到
-const DEMO_PW="03702716"; // 新增員工的預設密碼
+
+/* ============================================================
+   ★ 公司 IP 鎖定（只有在公司網路才能登入）
+   ============================================================ */
+const IP_LOCK_ENABLED      = true;                 // 要暫時關掉改成 false
+const ALLOWED_IPS          = ["78.168.69.*"];      // 可多筆；* 為萬用字元，也可寫完整 IP "78.168.69.113"
+const ALLOW_ADMIN_ANYWHERE = true;                 // 主控端不受 IP 限制（出差時仍可登入）
+const BLOCK_IF_IP_UNKNOWN  = true;                 // 查不到 IP 時：true=擋下, false=放行
+let CLIENT_IP = null;
+let IP_STATE  = 'checking';   // checking | ok | blocked | error | off
 
 /* ---- 員工資料（樣本存記憶體）----
-   id = 員工編號 = 登入帳號；pw = 登入密碼；photoUrl 可為上傳的 base64 或網址 */
+   ★ 帳號 = 姓名（大小寫不拘，也可以打四碼編號）
+   ★ 密碼 = email
+   ★ 請把下面的 email 換成同仁真實信箱，換掉之後密碼就跟著變。 */
+const ADMIN_PW = "03702716";   // 主控端共用密碼
+
 const EMPLOYEES = {
-  "0001": { id:"0001", role:"admin",    name:"莊適博", empNo:"E191", pw:"03702716", photoUrl:"", quota:{annual:112, sick:64, personal:56} },
-  "0002": { id:"0002", role:"employee", name:"林曉薇", empNo:"E205", pw:"03702716", photoUrl:"", quota:{annual:112, sick:64, personal:56} }
+  /* 員工：密碼＝Email */
+  "0001": { id:"0001", role:"employee", name:"Osman", email:"osman@taitra.org.tw", empNo:"0001", photoUrl:"", quota:{annual:112, sick:64, personal:56} },
+  "0002": { id:"0002", role:"employee", name:"Murat", email:"murat@taitra.org.tw", empNo:"0002", photoUrl:"", quota:{annual:112, sick:64, personal:56} },
+  "0003": { id:"0003", role:"employee", name:"Donus", email:"donus@taitra.org.tw", empNo:"0003", photoUrl:"", quota:{annual:112, sick:64, personal:56} },
+  /* 主控端：密碼＝ADMIN_PW（不是 Email）。Email 欄留空即可，要填也行。 */
+  "0004": { id:"0004", role:"admin",    name:"EVA",   email:"", pw:ADMIN_PW, empNo:"0004", photoUrl:"", quota:{annual:112, sick:64, personal:56} },
+  "0005": { id:"0005", role:"admin",    name:"Tasha", email:"", pw:ADMIN_PW, empNo:"0005", photoUrl:"", quota:{annual:112, sick:64, personal:56} }
 };
+/* 沒有指定 pw 的人，密碼就等於 email */
+Object.keys(EMPLOYEES).forEach(k=>{ if(!EMPLOYEES[k].pw) EMPLOYEES[k].pw = EMPLOYEES[k].email; });
+const PLACEHOLDER_MAIL = /@example\.com$/i;   // 還沒換成真信箱的會在「員工設定」標警告
 
 /* ---- i18n ---- */
 const I18N = {
   'zh-Hant':{
     emp_id:"員工編號（四碼）", password:"密碼", login_btn:"登入", logout:"登出",
+    sys_title:"員工打卡系統",
+    demo_flag:"🧪 樣本測試版 — 使用假資料，不會寫入 Firebase。打卡按鈕僅在畫面上模擬。",
+    login_user:"姓名（或四碼員工編號）", login_pw_email:"密碼（員工＝你的 Email）",
+    login_help:"用你的名字登入（大小寫不拘）。員工的密碼是自己的公司 Email；主控端請用另外提供的密碼。",
+    ip_checking:"⏳ 正在確認網路位置…",
+    ip_ok:"✅ 公司網路，可以打卡",
+    ip_blocked:"🔒 非公司網路，無法登入打卡。你目前的 IP：",
+    ip_error:"⚠️ 無法確認網路位置，請改用公司網路或聯絡主控端。",
+    ip_off:"IP 鎖定目前關閉。",
+    ip_need_office:"請在公司網路登入打卡。目前 IP：",
+    email_pw:"Email（員工的登入密碼）", no_email:"尚未設定 Email", mail_placeholder:"⚠ 請改成真實 Email",
+    bad_email:"請填 Email 或另設密碼，兩者至少要有一個。",
+    pw_field:"另設密碼（留空＝用 Email 當密碼）", custom_pw:"自訂密碼",
     clock_in:"上班打卡", clock_out:"下班打卡",
     emp_rule:"上班取當天最早、下班取當天最晚。重複打卡不覆蓋。（樣本測試：僅模擬，不寫入資料庫）",
     my_log:"我的考勤紀錄",
     tab_monthly:"月總表", tab_daily:"每日狀況", tab_emp:"員工設定",
     admin_month_title:"月總表 — 每人每日工時", select_month:"選擇月份",
-    lg_green:"有上下打卡（綠燈，計 8 小時）", lg_red:"缺打卡（紅字）", lg_leave:"休假（主控端標記）",
-    month_hint:"只要當天有上班＋下班打卡即綠燈、計 8 小時（發薪用）。缺打卡為紅字。休假／病假／公出請在「每日狀況」分頁編輯；細部請假時數用「請假審核」分頁管理。",
+    lg_green:"出勤完整（有上、下班紀錄）", lg_red:"缺打卡（紅字）", lg_leave:"休假（主控端標記）",
+    month_hint:"缺打卡會顯示紅字。休假／病假／公出請在「每日狀況」分頁編輯；細部請假時數用「請假審核」分頁管理。",
     admin_daily_title:"每日打卡狀況", select_date:"選擇日期",
     daily_hint:"點任一列可查看該員工的個人橫列打卡紀錄。",
     admin_emp_title:"員工資料設定（照片 / 姓名 / 編號）",
@@ -512,7 +553,7 @@ const I18N = {
     upload_photo:"上傳照片", emp_id_account:"員工編號（即帳號，四碼）", login_pw:"登入密碼", role:"角色",
     add_employee:"新增員工", add_save:"確定新增", delete:"刪除", confirm_delete:"確定要刪除這位員工及其打卡資料嗎？", id_taken:"此編號已存在，請換一個。",
     total:"當月加總", total_hours:"當月工時加總", clocked_in_at:"上班打卡 ", clocked_out_at:"下班打卡 ",
-    login_fail:"編號或密碼錯誤（測試密碼：03702716）", id_format:"請輸入四位數字編號。",
+    login_fail:"姓名或密碼錯誤，請再確認一次。", id_format:"請輸入四位數字編號。",
     hours_unit:"時",
     etab_clock:"打卡", etab_leave:"請假", tab_leave_review:"請假審核",
     leave_balance_title:"我的休假額度", apply_leave:"申請請假", leave_type:"請假類別",
@@ -532,13 +573,26 @@ const I18N = {
   },
   'en':{
     emp_id:"Employee ID (4 digits)", password:"Password", login_btn:"Log In", logout:"Log Out",
+    sys_title:"Staff Check-In",
+    demo_flag:"🧪 Demo build — sample data only, nothing is written to Firebase. Clock buttons are simulated.",
+    login_user:"Name (or 4-digit staff ID)", login_pw_email:"Password (staff: your email)",
+    login_help:"Log in with your name (not case-sensitive). Staff passwords are their own company email; admins use the password provided separately.",
+    ip_checking:"⏳ Checking your network…",
+    ip_ok:"✅ Office network — you can clock in",
+    ip_blocked:"🔒 Not the office network, login is disabled. Your IP: ",
+    ip_error:"⚠️ Could not check your network. Please use the office network or contact the admin.",
+    ip_off:"IP lock is currently off.",
+    ip_need_office:"Please log in from the office network. Current IP: ",
+    email_pw:"Email (staff login password)", no_email:"No email set", mail_placeholder:"⚠ Replace with a real email",
+    bad_email:"Enter an email or set a password — at least one is required.",
+    pw_field:"Custom password (blank = use email)", custom_pw:"Custom password",
     clock_in:"Clock In", clock_out:"Clock Out",
     emp_rule:"Earliest clock-in and latest clock-out per day are kept; repeats don't overwrite. (Demo: simulated only, nothing is saved.)",
     my_log:"My attendance",
     tab_monthly:"Monthly", tab_daily:"Daily", tab_emp:"Employees",
     admin_month_title:"Monthly overview — daily hours per person", select_month:"Month",
-    lg_green:"Clocked in & out (green, counts 8 h)", lg_red:"Missing punch (red)", lg_leave:"Leave (marked by admin)",
-    month_hint:"Any day with both clock-in and clock-out is green and counts 8 h (for payroll). Missing punch is red. Edit leave/sick/business on the Daily tab; manage partial-hour leave on the Leave review tab.",
+    lg_green:"Complete attendance (clock-in & clock-out on file)", lg_red:"Missing punch (red)", lg_leave:"Leave (marked by admin)",
+    month_hint:"A missing punch shows in red. Edit leave/sick/business on the Daily tab; manage partial-hour leave on the Leave review tab.",
     admin_daily_title:"Daily attendance", select_date:"Date",
     daily_hint:"Click any row to view that employee's row-style log.",
     admin_emp_title:"Employee profiles (photo / name / ID)",
@@ -556,7 +610,7 @@ const I18N = {
     upload_photo:"Upload photo", emp_id_account:"Employee ID (account, 4 digits)", login_pw:"Login password", role:"Role",
     add_employee:"Add employee", add_save:"Add", delete:"Delete", confirm_delete:"Delete this employee and their attendance data?", id_taken:"This ID already exists, choose another.",
     total:"Month total", total_hours:"Monthly total hours", clocked_in_at:"Clock In ", clocked_out_at:"Clock Out ",
-    login_fail:"Wrong ID or password (demo password: 03702716)", id_format:"Please enter a 4-digit number.",
+    login_fail:"Wrong name or password, please check again.", id_format:"Please enter a 4-digit number.",
     hours_unit:"h",
     etab_clock:"Clock", etab_leave:"Leave", tab_leave_review:"Leave review",
     leave_balance_title:"My leave balance", apply_leave:"Apply for leave", leave_type:"Leave type",
@@ -580,8 +634,16 @@ const t=k=>(I18N[LANG]&&I18N[LANG][k])||k;
 function applyI18n(){
   document.documentElement.lang=LANG;
   document.querySelectorAll('[data-i18n]').forEach(el=>el.textContent=t(el.getAttribute('data-i18n')));
-  document.getElementById('langToggle').textContent = LANG==='zh-Hant'?'EN':'中';
-  if(CURRENT){ renderAll(); }
+  const label = LANG==='zh-Hant'?'EN':'中';
+  ['langToggle','langToggleLogin'].forEach(id=>{ const b=document.getElementById(id); if(b) b.textContent=label; });
+  // 角色徽章不是 data-i18n，要另外換
+  if(CURRENT){
+    const rb=document.getElementById('roleBadge');
+    if(rb) rb.textContent = CURRENT.role==='admin'?t('role_admin'):t('role_emp');
+  }
+  renderIpBanner();
+  // 每個區塊各自 try/catch：任何一塊出錯都不會擋住其他表格換語言
+  if(CURRENT) renderAll();
 }
 
 /* ---- 假打卡資料：本月每人每日 in/out（毫秒）---- */
@@ -700,16 +762,77 @@ let CURRENT=null; // employee object
 function personSvg(){ return `<svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 4.9-2.2 4.9-4.9S14.7 2.2 12 2.2 7.1 4.4 7.1 7.1 9.3 12 12 12zm0 2.4c-3.3 0-9.8 1.6-9.8 4.9v2.5h19.6v-2.5c0-3.3-6.5-4.9-9.8-4.9z"/></svg>`; }
 function avatarInner(url){ return (url&&url.trim())? `<img class="avatar" src="${url}" style="width:100%;height:100%;border:none" onerror="this.replaceWith(document.createRange().createContextualFragment('${personSvg().replace(/'/g,"\\'")}'))">` : personSvg(); }
 
-/* ---- 登入 ---- */
-window.fill=(id)=>{ document.getElementById('loginId').value=id; document.getElementById('loginPw').value=DEMO_PW; };
+/* ============================================================
+   公司 IP 檢查
+   ============================================================ */
+function ipMatches(ip){
+  return ALLOWED_IPS.some(pat=>{
+    if(pat.indexOf('*')>=0){
+      const re=new RegExp('^'+pat.replace(/\./g,'\\.').replace(/\*/g,'.*')+'$');
+      return re.test(ip);
+    }
+    return pat===ip;
+  });
+}
+function renderIpBanner(){
+  const el=document.getElementById('ipBanner');
+  if(!el) return;
+  el.className='ip-banner';
+  if(!IP_LOCK_ENABLED){ el.classList.add('ok'); el.textContent=t('ip_off'); return; }
+  if(IP_STATE==='checking'){ el.textContent=t('ip_checking'); return; }
+  if(IP_STATE==='ok'){ el.classList.add('ok'); el.textContent=t('ip_ok'); return; }
+  if(IP_STATE==='error'){ el.classList.add('error'); el.textContent=t('ip_error'); return; }
+  el.classList.add('blocked');
+  el.innerHTML=t('ip_blocked')+'<b>'+(CLIENT_IP||'?')+'</b>';
+}
+async function checkClientIP(){
+  if(!IP_LOCK_ENABLED){ IP_STATE='off'; renderIpBanner(); return; }
+  const sources=['https://api.ipify.org?format=json','https://api64.ipify.org?format=json','https://ipapi.co/json/'];
+  for(const url of sources){
+    try{
+      const r=await fetch(url,{cache:'no-store'});
+      if(!r.ok) continue;
+      const j=await r.json();
+      const ip=j.ip||j.query;
+      if(ip){ CLIENT_IP=ip; IP_STATE=ipMatches(ip)?'ok':'blocked'; renderIpBanner(); return; }
+    }catch(e){ /* 換下一個來源 */ }
+  }
+  IP_STATE='error'; renderIpBanner();
+}
+function ipAllowedFor(acc){
+  if(!IP_LOCK_ENABLED) return true;
+  if(ALLOW_ADMIN_ANYWHERE && acc.role==='admin') return true;
+  if(IP_STATE==='error') return !BLOCK_IF_IP_UNKNOWN;
+  return IP_STATE==='ok';
+}
+function ipBlockMessage(){
+  if(IP_STATE==='error') return t('ip_error');
+  if(IP_STATE==='checking') return t('ip_checking');
+  return t('ip_need_office')+(CLIENT_IP||'?');
+}
+
+/* ---- 登入：帳號＝姓名或四碼編號，密碼＝email ---- */
+function findAccount(input){
+  const v=(input||'').trim().toLowerCase();
+  if(!v) return null;
+  if(EMPLOYEES[v]) return EMPLOYEES[v];
+  const ids=Object.keys(EMPLOYEES);
+  for(let i=0;i<ids.length;i++){
+    const e=EMPLOYEES[ids[i]];
+    if((e.name||'').trim().toLowerCase()===v) return e;
+  }
+  return null;
+}
 function doLogin(){
-  const id=document.getElementById('loginId').value.trim();
-  const pw=document.getElementById('loginPw').value;
+  const who=document.getElementById('loginId').value.trim();
+  const pw=document.getElementById('loginPw').value.trim();
   const msg=document.getElementById('loginMsg');
   msg.textContent='';
-  if(!/^[0-9]{4}$/.test(id)){ msg.textContent=t('id_format'); return; }
-  if(!EMPLOYEES[id] || pw!==EMPLOYEES[id].pw){ msg.textContent=t('login_fail'); return; }
-  CURRENT=EMPLOYEES[id];
+  const acc=findAccount(who);
+  const expected=String((acc&&(acc.pw||acc.email))||'').trim().toLowerCase();
+  if(!acc || !expected || pw.toLowerCase()!==expected){ msg.textContent=t('login_fail'); return; }
+  if(!ipAllowedFor(acc)){ msg.textContent=ipBlockMessage(); return; }
+  CURRENT=acc;
   document.getElementById('loginView').style.display='none';
   document.getElementById('appView').style.display='block';
   document.getElementById('empUI').style.display = CURRENT.role==='employee'?'block':'none';
@@ -721,13 +844,22 @@ document.getElementById('loginBtn').onclick=doLogin;
 document.getElementById('loginPw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 document.getElementById('loginId').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 document.getElementById('logoutBtn').onclick=()=>{ CURRENT=null; document.getElementById('appView').style.display='none'; document.getElementById('loginView').style.display='block'; document.getElementById('loginPw').value=''; };
-document.getElementById('langToggle').onclick=()=>{ LANG=LANG==='zh-Hant'?'en':'zh-Hant'; applyI18n(); };
+function toggleLang(){ LANG = LANG==='zh-Hant'?'en':'zh-Hant'; applyI18n(); }
+document.getElementById('langToggle').onclick=toggleLang;
+document.getElementById('langToggleLogin').onclick=toggleLang;
 
 /* ---- 統一渲染 ---- */
+function safe(fn,label){ try{ fn(); }catch(err){ console.error('[render '+label+']',err); } }
 function renderAll(){
   if(!CURRENT) return;
-  if(CURRENT.role==='employee') renderEmployee();
-  else renderAdmin();
+  if(CURRENT.role==='employee'){
+    safe(renderEmployee,'employee');
+  }else{
+    safe(renderMonthCalendar,'monthly');
+    safe(renderDaily,'daily');
+    safe(renderEmpAdmin,'employees');
+    safe(renderAllRequests,'requests');
+  }
 }
 
 /* ============================================================
@@ -1037,10 +1169,10 @@ document.querySelectorAll('[data-tab]').forEach(tab=>{
 });
 
 function renderAdmin(){
-  renderMonthCalendar();
-  renderDaily();
-  renderEmpAdmin();
-  renderAllRequests();
+  safe(renderMonthCalendar,'monthly');
+  safe(renderDaily,'daily');
+  safe(renderEmpAdmin,'employees');
+  safe(renderAllRequests,'requests');
 }
 
 /* --- 月總表（日曆式） --- */
@@ -1253,7 +1385,7 @@ document.getElementById('modalSave').onclick=()=>{
 
 /* --- 員工設定（可新增、可改編號/密碼/照片/姓名）--- */
 function empEditForm(id, isNew){
-  const e = isNew ? {id:'',name:'',pw:DEMO_PW,role:'employee',photoUrl:'',quota:{annual:112,sick:64,personal:56}} : EMPLOYEES[id];
+  const e = isNew ? {id:'',name:'',email:'',pw:'',role:'employee',photoUrl:'',quota:{annual:112,sick:64,personal:56}} : EMPLOYEES[id];
   const key = isNew ? 'new' : id;
   return `<div class="subcard" id="edit_${key}" style="display:${isNew?'block':'none'};">
       <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
@@ -1268,7 +1400,8 @@ function empEditForm(id, isNew){
         <div style="flex:1; min-width:200px;">
           <div class="field"><label>${t('name')}</label><input id="name_${key}" value="${e.name||''}"></div>
           <div class="field"><label>${t('emp_id_account')}</label><input id="id_${key}" value="${e.id||''}" maxlength="4" inputmode="numeric" placeholder="0003"></div>
-          <div class="field"><label>${t('login_pw')}</label><input id="pw_${key}" value="${e.pw||''}" placeholder="********"></div>
+          <div class="field"><label>${t('email_pw')}</label><input id="email_${key}" value="${e.email||''}" placeholder="name@company.com" autocapitalize="none"></div>
+          <div class="field"><label>${t('pw_field')}</label><input id="pw_${key}" value="${(e.pw&&e.pw!==e.email)?e.pw:''}" placeholder="—"></div>
           <div class="field"><label>${t('role')}</label>
             <select id="role_${key}">
               <option value="employee" ${e.role==='employee'?'selected':''}>${t('role_emp')}</option>
@@ -1292,6 +1425,12 @@ function empEditForm(id, isNew){
       <div class="msg err" id="editMsg_${key}"></div>
     </div>`;
 }
+function mailLabel(e){
+  if(!e.email && e.pw) return '<span style="color:#5b6b78">'+t('custom_pw')+'</span>';
+  if(!e.email) return '<span style="color:var(--bad)">⚠ '+t('no_email')+'</span>';
+  if(PLACEHOLDER_MAIL.test(e.email)) return '<span style="color:var(--warn)">'+e.email+' · '+t('mail_placeholder')+'</span>';
+  return e.email;
+}
 function renderEmpAdmin(){
   const box=document.getElementById('empAdminList');
   let html=`<button class="btn-primary" style="width:auto;padding:10px 20px;margin-bottom:16px" onclick="showAddForm()">＋ ${t('add_employee')}</button>`;
@@ -1300,7 +1439,7 @@ function renderEmpAdmin(){
     const e=EMPLOYEES[id];
     return `<div class="emp-row">
       <div class="avatar">${avatarInner(e.photoUrl)}</div>
-      <div class="emp-info"><div class="n">${e.name||'(未命名)'}</div><div class="e">#${e.id} · ${t('role_'+(e.role==='admin'?'admin':'emp'))}</div></div>
+      <div class="emp-info"><div class="n">${e.name||'(—)'}</div><div class="e">#${e.id} · ${t('role_'+(e.role==='admin'?'admin':'emp'))} · ${mailLabel(e)}</div></div>
       <button class="btn-mini" onclick="toggleEdit('${id}')">${t('edit')}</button>
     </div>
     ${empEditForm(id,false)}`;
@@ -1329,10 +1468,14 @@ window.saveEmp=(id)=>{
   msg.textContent='';
   if(!/^[0-9]{4}$/.test(newId)){ msg.textContent=t('id_format'); return; }
   if(newId!==id && EMPLOYEES[newId]){ msg.textContent=t('id_taken'); return; }
+  const email=document.getElementById('email_'+id).value.trim();
+  const customPw=document.getElementById('pw_'+id).value.trim();
+  if(!email && !customPw){ msg.textContent=t('bad_email'); return; }
   const updated={
     id:newId,
     name:document.getElementById('name_'+id).value.trim()||e.name,
-    pw:document.getElementById('pw_'+id).value||e.pw,
+    email:email,
+    pw:customPw||email,
     role:document.getElementById('role_'+id).value,
     empNo:e.empNo,
     photoUrl:document.getElementById('photodata_'+id).value,
@@ -1360,10 +1503,12 @@ window.addEmployee=()=>{
   msg.textContent='';
   if(!/^[0-9]{4}$/.test(id)){ msg.textContent=t('id_format'); return; }
   if(EMPLOYEES[id]){ msg.textContent=t('id_taken'); return; }
-  const pw=document.getElementById('pw_new').value||DEMO_PW;
+  const email=document.getElementById('email_new').value.trim();
+  const customPw=document.getElementById('pw_new').value.trim();
+  if(!email && !customPw){ msg.textContent=t('bad_email'); return; }
   EMPLOYEES[id]={
-    id, name:document.getElementById('name_new').value.trim()||('員工'+id),
-    pw, role:document.getElementById('role_new').value, empNo:id,
+    id, name:document.getElementById('name_new').value.trim()||('Staff '+id),
+    email, pw:customPw||email, role:document.getElementById('role_new').value, empNo:id,
     photoUrl:document.getElementById('photodata_new').value,
     quota:{
       annual:parseInt(document.getElementById('qa_new').value,10)||0,
@@ -1413,6 +1558,7 @@ setInterval(tickClock,1000); tickClock();
 })();
 
 applyI18n();
+checkClientIP();
 </script>
 </body>
 </html>
