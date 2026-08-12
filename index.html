@@ -173,7 +173,19 @@
   .cal-cell.sick{ background:#fdeede; border-color:#f0d3aa; }
   .cal-cell.sick .cal-hrs{ color:#c07a1a; font-size:11px; }
   .cal-badge.sick{ background:#c07a1a; }
+  .pill.absent{ background:#f7d9d4; color:#8f1d10; font-weight:800; }
+  .cal-cell.absent{ background:#fbe0da; border-color:#e9b3a8; }
+  .cal-cell.absent .cal-hrs{ color:#8f1d10; font-size:11px; font-weight:800; }
+  .cal-badge.absent{ background:#8f1d10; }
+  .pill.holiday{ background:#e7e2f7; color:#5b3fa8; }
+  .cal-cell.holiday{ background:#efeafb; border-color:#cfc4ee; }
+  .cal-cell.holiday .cal-hrs{ color:#5b3fa8; font-size:10px; font-weight:700; }
+  .cal-badge.holiday{ background:#5b3fa8; }
+  .warn-box{ margin-top:10px; padding:10px 12px; border-radius:8px; font-size:12px; line-height:1.7;
+             background:#fbe6e2; border:1px solid #f0c8c0; color:#8f1d10; }
+  .warn-box.soft{ background:#fdf3e2; border-color:#e8d29a; color:var(--warn); }
   .type-annual{ color:var(--leave); } .type-sick{ color:#c07a1a; } .type-personal{ color:#1665c0; }
+  .type-sick_doc{ color:#c07a1a; } .type-absent{ color:#8f1d10; }
   .tab{ padding:8px 16px; border-radius:20px; font-size:13px; font-weight:700; cursor:pointer; background:#fff; border:1px solid var(--line); color:#5b6b78; width:auto; }
   .tab.active{ background:var(--navy); color:#fff; border-color:var(--navy); }
 
@@ -387,15 +399,20 @@
         </div>
         <div class="cal-grid" id="calGrid"></div>
         <div class="cal-total">
-          <span data-i18n="total_hours">當月工時加總</span>
-          <b id="calTotal">00:00:00</b>
+          <span data-i18n="total_days">當月出勤天數</span>
+          <b id="calTotal">0</b>
         </div>
+        <p class="hint" id="calBreak"></p>
+        <div id="calWarn"></div>
         <div class="legend">
           <span><i class="dot green"></i><span data-i18n="lg_green">出勤完整（有上、下班紀錄）</span></span>
           <span><i class="dot red"></i><span data-i18n="lg_red">缺打卡（紅字）</span></span>
           <span><i class="dot leave"></i><span data-i18n="lg_leave">休假（主控端標記）</span></span>
           <span><i class="dot" style="background:#1665c0"></i><span data-i18n="lg_biz">公出（可填時間）</span></span>
-          <span><i class="dot" style="background:#c07a1a"></i><span data-i18n="st_sick">病假</span></span>
+          <span><i class="dot" style="background:#c07a1a"></i><span data-i18n="st_sick_doc">病假·有證明</span></span>
+          <span><i class="dot" style="background:#8f1d10"></i><span data-i18n="st_absent">曠職</span></span>
+          <span><i class="dot" style="background:#5b3fa8"></i><span data-i18n="st_holiday">國定假日（有薪）</span></span>
+          <span><b>✓</b>&nbsp;<span data-i18n="lg_counted">有打勾的日子才計入出勤天數</span></span>
         </div>
         <p class="hint" data-i18n="month_hint">休假／病假／公出請在「每日狀況」分頁編輯；細部請假時數用「請假審核」分頁管理。</p>
       </div>
@@ -408,7 +425,7 @@
           <input type="date" id="dailyDate">
         </div>
         <div class="tbl-scroll"><table id="dailyTable"></table></div>
-        <p class="hint" data-i18n="daily_hint">點任一列可切換下方要看的員工。可用「編輯」修改上/下班時間。</p>
+        <p class="hint" data-i18n="daily_hint">下方的橫列紀錄可用「選擇員工」切換，或直接點表格任一列。「編輯」可改上／下班時間與狀態。</p>
 
         <!-- 個人橫列紀錄：預設一定開啟 -->
         <div class="divider"></div>
@@ -417,6 +434,10 @@
           <div><div class="ident-name" id="drillName">—</div><div class="ident-meta" id="drillMeta">—</div></div>
         </div>
         <p class="section-title" data-i18n="row_log">橫列式打卡紀錄</p>
+        <div class="field" style="max-width:220px;">
+          <label data-i18n="select_emp">選擇員工</label>
+          <select id="drillEmp"></select>
+        </div>
         <div class="tbl-scroll"><table id="drillTable"></table></div>
       </div>
 
@@ -455,7 +476,8 @@
           <option value="work" data-i18n="m_work">上班</option>
           <option value="business" data-i18n="m_business">公出</option>
           <option value="leave" data-i18n="m_leave">休假</option>
-          <option value="sick" data-i18n="m_sick">病假</option>
+          <option value="sick_doc" data-i18n="m_sick_doc">病假（有證明）</option>
+          <option value="absent" data-i18n="m_absent">曠職（缺席／無醫生證明）</option>
         </select>
       </div>
       <div id="modalTimes">
@@ -513,8 +535,8 @@ const EMPLOYEES = {
   "0002": { id:"0002", role:"employee", name:"Murat", email:"murat@taitra.org.tw", empNo:"0002", photoUrl:"", quota:{annual:112, sick:0, personal:0} },
   "0003": { id:"0003", role:"employee", name:"Donus", email:"donus@taitra.org.tw", empNo:"0003", photoUrl:"", quota:{annual:112, sick:0, personal:0} },
   /* 主控端：密碼＝ADMIN_PW（不是 Email）。Email 欄留空即可，要填也行。 */
-  "0004": { id:"0004", role:"admin",    name:"EVA",   email:"", pw:ADMIN_PW, empNo:"0004", photoUrl:"", quota:{annual:112, sick:0, personal:0} },
-  "0005": { id:"0005", role:"admin",    name:"Tasha", email:"", pw:ADMIN_PW, empNo:"0005", photoUrl:"", quota:{annual:112, sick:0, personal:0} }
+  "0004": { id:"0004", role:"admin",    name:"EVA",   email:"", pw:ADMIN_PW, empNo:"0004", photoUrl:"", noAttendance:true, quota:{annual:112, sick:0, personal:0} },
+  "0005": { id:"0005", role:"admin",    name:"Tasha", email:"", pw:ADMIN_PW, empNo:"0005", photoUrl:"", noAttendance:true, quota:{annual:112, sick:0, personal:0} }
 };
 /* 沒有指定 pw 的人，密碼就等於 email */
 Object.keys(EMPLOYEES).forEach(k=>{ if(!EMPLOYEES[k].pw) EMPLOYEES[k].pw = EMPLOYEES[k].email; });
@@ -543,9 +565,9 @@ const I18N = {
     tab_monthly:"月總表", tab_daily:"每日狀況", tab_emp:"員工設定",
     admin_month_title:"月總表 — 每人每日工時", select_month:"選擇月份",
     lg_green:"出勤完整（有上、下班紀錄）", lg_red:"缺打卡（紅字）", lg_leave:"休假（主控端標記）",
-    month_hint:"缺打卡會顯示紅字。休假／病假／公出請在「每日狀況」分頁編輯；細部請假時數用「請假審核」分頁管理。",
+    month_hint:"出勤天數＝正常上班＋公出。病假（有證明）不算曠職但公司不支薪；沒有醫生證明的缺席一律記為曠職。狀態請在「每日狀況」分頁編輯。",
     admin_daily_title:"每日打卡狀況", select_date:"選擇日期",
-    daily_hint:"點任一列可查看該員工的個人橫列打卡紀錄。",
+    daily_hint:"下方的橫列紀錄可用「選擇員工」切換，或直接點表格任一列。「編輯」可改上／下班時間與狀態。",
     admin_emp_title:"員工資料設定（照片 / 姓名 / 編號）",
     emp_hint:"照片留空時顯示人形圖示，可貼圖片網址替換。（樣本測試：修改僅存在畫面，不寫入資料庫）",
     back:"返回", row_log:"橫列式打卡紀錄",
@@ -568,16 +590,27 @@ const I18N = {
     from_time:"起", to_time:"迄", submit_request:"送出申請", my_requests:"我的假單",
     admin_leave_title:"請假審核 — 全部假單", filter_status:"狀態篩選",
     f_all:"全部", f_pending:"待審核", f_approved:"已核准", f_rejected:"已駁回",
-    review_hint:"核准後才會扣抵，駁回不扣。扣抵順序：一律先扣特休剩餘額度，扣完之後超出的時數才記入病假／事假的累計。",
+    review_hint:"核准後才會扣抵，駁回不扣。病假（有證明）不動特休、直接累計；特休與事假先扣特休剩餘額度，扣完之後超出的時數才記入事假累計。沒有醫生證明的缺席請在「每日狀況」標記為曠職。",
     type_annual:"特休", type_sick:"病假", type_personal:"事假",
+    type_sick_doc:"病假（有證明）", type_absent:"曠職",
     m_sick:"病假", st_sick:"病假", st_missing:"缺卡",
+    m_sick_doc:"病假（有證明）", m_absent:"曠職（缺席／無醫生證明）",
+    st_sick_doc:"病假·有證明", st_absent:"曠職",
     calc_hours:"計算時數", time_range:"時段", note_col:"備註", no_requests:"目前沒有假單",
     need_date:"請選擇日期。", bad_time:"迄時間需晚於起時間。", submitted:"已送出，等待審核。",
     rs_pending:"待審核", rs_approved:"已核准", rs_rejected:"已駁回",
     approve:"核准", reject:"駁回", reset:"改回待審", days_unit:"天",
     q_annual:"特休額度(時)", q_sick:"病假額度(時)", q_personal:"事假額度(時)",
     q_remaining:"剩餘", q_accrued:"累計已請", done:"完成",
-    leave_rule:"請假一律先扣特休的剩餘額度；特休用完之後，超出的時數才會記到病假／事假的累計，累計沒有上限。",
+    total_days:"當月出勤天數", sum_counted:"計入", sum_excluded:"未計入", select_emp:"選擇員工",
+    st_holiday:"國定假日（有薪）", sum_holiday:"國定假日", half_day:"半天",
+    no_attendance:"不列入打卡名單（不需打卡）",
+    lg_counted:"有打勾的日子才計入出勤天數",
+    sum_paid:"公司支薪", sum_sick:"病假（有證明，公司不支薪）",
+    sgk_wait:"前2天無給付", sgk_paid:"SGK 給付 2/3 日薪",
+    sum_unpaid:"無薪", warn_absent2:"⚠ 本月有連續 2 個工作日曠職。依土耳其勞動法第 25/II-g 條，這可能構成雇主正當解雇事由（不需給資遣費）。實際處理前請先與當地法務／會計確認。",
+    warn_absent3:"⚠ 本月曠職已達 3 個工作日。依土耳其勞動法第 25/II-g 條，一個月內累計 3 個工作日曠職也可能構成正當解雇事由。請與當地法務／會計確認。",
+    leave_rule:"病假（有證明）不扣特休，時數直接進累計；公司不支薪，前 2 天無給付，第 3 天起可憑醫生證明向 SGK 請領 2/3 日薪。特休與事假一律先扣特休剩餘額度，扣完之後超出的時數才進事假累計。沒有醫生證明的缺席不算病假，會被記為曠職。",
     date:"日期", employee:"員工", note_opt:"備註（選填）",
     am:"上午", pm:"下午", dp_hour:"時", dp_minute:"分", dp_period:"上午/下午"
   },
@@ -602,9 +635,9 @@ const I18N = {
     tab_monthly:"Monthly", tab_daily:"Daily", tab_emp:"Employees",
     admin_month_title:"Monthly overview — daily hours per person", select_month:"Month",
     lg_green:"Complete attendance (clock-in & clock-out on file)", lg_red:"Missing punch (red)", lg_leave:"Leave (marked by admin)",
-    month_hint:"A missing punch shows in red. Edit leave/sick/business on the Daily tab; manage partial-hour leave on the Leave review tab.",
+    month_hint:"Days worked = normal attendance + business trips. Sick leave with a report is not absenteeism but is not paid by the company; any absence without a doctor's report is recorded as absenteeism. Edit statuses on the Daily tab.",
     admin_daily_title:"Daily attendance", select_date:"Date",
-    daily_hint:"Click any row to view that employee's row-style log.",
+    daily_hint:"Switch the row-style log below with the employee selector, or just click any row here. Use Edit to change times or status.",
     admin_emp_title:"Employee profiles (photo / name / ID)",
     emp_hint:"Blank photo shows a person icon; paste an image URL to replace. (Demo: edits stay on screen only.)",
     back:"Back", row_log:"Row-style attendance log",
@@ -627,16 +660,27 @@ const I18N = {
     from_time:"From", to_time:"To", submit_request:"Submit", my_requests:"My requests",
     admin_leave_title:"Leave review — all requests", filter_status:"Filter status",
     f_all:"All", f_pending:"Pending", f_approved:"Approved", f_rejected:"Rejected",
-    review_hint:"Only approved requests count; rejected ones don't. Order: annual leave is always used first, and only the hours beyond it are added to the sick / personal running totals.",
+    review_hint:"Only approved requests count; rejected ones don't. Sick leave with a report never touches the annual balance; annual and personal leave use annual first. An absence without a report should be marked as absenteeism on the Daily tab.",
     type_annual:"Annual", type_sick:"Sick", type_personal:"Personal",
+    type_sick_doc:"Sick (with report)", type_absent:"Absent",
     m_sick:"Sick leave", st_sick:"Sick", st_missing:"Missing",
+    m_sick_doc:"Sick leave (with report)", m_absent:"Absent (no doctor's report)",
+    st_sick_doc:"Sick·report", st_absent:"Absent",
     calc_hours:"Hours", time_range:"Time", note_col:"Note", no_requests:"No requests yet",
     need_date:"Please choose a date.", bad_time:"End must be after start.", submitted:"Submitted, pending review.",
     rs_pending:"Pending", rs_approved:"Approved", rs_rejected:"Rejected",
     approve:"Approve", reject:"Reject", reset:"Reset", days_unit:"d",
     q_annual:"Annual (h)", q_sick:"Sick (h)", q_personal:"Personal (h)",
     q_remaining:"Remaining", q_accrued:"Accrued", done:"Done",
-    leave_rule:"Leave always draws on your remaining annual balance first. Once annual runs out, the extra hours are added to the sick / personal running totals, which have no cap.",
+    total_days:"Days worked this month", sum_counted:"Counted", sum_excluded:"Not counted", select_emp:"Select employee",
+    st_holiday:"Public holiday (paid)", sum_holiday:"Public holidays", half_day:"half day",
+    no_attendance:"Not on the clock-in roster",
+    lg_counted:"Only ticked days count towards days worked",
+    sum_paid:"Paid by company", sum_sick:"Sick with report (not paid by company)",
+    sgk_wait:"first 2 days unpaid", sgk_paid:"SGK pays 2/3 of daily wage",
+    sum_unpaid:"Unpaid", warn_absent2:"⚠ Two consecutive working days of absence this month. Under Article 25/II-g of the Turkish Labour Law this may give the employer just cause for termination without severance. Confirm with local legal/accounting before acting.",
+    warn_absent3:"⚠ Three working days of absence this month. Under Article 25/II-g of the Turkish Labour Law three working days of absence within one month may also give just cause for termination. Confirm with local legal/accounting.",
+    leave_rule:"Sick leave with a doctor's report does not touch your annual balance — the hours go straight to its running total. The company does not pay those days: the first 2 days carry no payment at all, and from the 3rd day SGK pays 2/3 of the daily wage against the report. Annual and personal leave draw on your remaining annual balance first. An absence without a doctor's report is not sick leave — it is recorded as absenteeism.",
     date:"Date", employee:"Employee", note_opt:"Note (optional)",
     am:"AM", pm:"PM", dp_hour:"Hour", dp_minute:"Min", dp_period:"AM/PM"
   }
@@ -667,21 +711,66 @@ function ymd(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDa
 /* 產生本月假資料：工作日隨機上下班時間，穿插幾天遲到/休假 */
 const LEAVE_MARKS = {}; // key: id|date -> true  （休假，主控端標記，樣本存記憶體）
 const BIZ_MARKS = {};   // key: id|date -> true  （公出，主控端標記；仍保留 ATT 上/下班時間）
-const SICK_MARKS = {};  // key: id|date -> true  （病假整日標記，供每日狀況/月曆著色）
+const SICK_MARKS   = {};  // key: id|date -> 'doc'   （有醫生證明的病假整日標記）
+const ABSENT_MARKS = {};  // key: id|date -> true    （曠職：缺席且沒有醫生證明）
 const ATT = {};         // key: id|date -> {inMs,outMs}
 const HOURS_PER_DAY = 8;
 
 /* 請假單（新系統）：每筆 {id(單號), empId, type:'annual|sick|personal', date, startMin, endMin, hours, status:'pending|approved|rejected', note} */
 const LEAVE_REQUESTS = [];
 let REQ_SEQ = 1;
-const LEAVE_TYPES = ['annual','sick','personal']; // 特休 / 病假 / 事假
+const LEAVE_TYPES = ['annual','sick_doc','personal']; // 特休 / 病假(有證明) / 事假
+/* 沒有醫生證明的缺席不是病假，而是曠職，不走請假流程，由主控端在「每日狀況」標記。 */
+
+/* 每種假是否要「先扣特休剩餘額度」。
+   sick_doc=false：有醫生證明的病假不動特休，時數直接進「病假（有證明）」累計。
+   要改回「有證明也先扣特休」就把 sick_doc 改成 true。 */
+const ANNUAL_FIRST_FOR = { annual:true, sick_doc:false, personal:true };
+
+/* SGK 病假給付：每一張醫生證明（連續的病假期間）前 2 天無給付，第 3 天起由 SGK 給付 2/3 日薪。
+   雇主全程不支薪。要改天數把 SGK_WAIT_DAYS 改掉即可。 */
+const SGK_WAIT_DAYS = 2;
+
+/* ============================================================
+   ★ 土耳其國定假日 2026（有薪，公司要照付）
+   half:true = 半天（arife 下午起放假）
+   來源：2026 年公告的 resmi tatil 行事曆；宗教節日日期以每年公告為準。
+   ============================================================ */
+const HOLIDAYS = {
+  '2026-01-01': { zh:'元旦',                 en:'New Year',                    tr:'Yılbaşı' },
+  '2026-03-19': { zh:'開齋節前夕（半天）',   en:'Eid al-Fitr eve (half day)',  tr:'Ramazan Bayramı Arifesi', half:true },
+  '2026-03-20': { zh:'開齋節 第1天',         en:'Eid al-Fitr day 1',           tr:'Ramazan Bayramı 1. Gün' },
+  '2026-03-21': { zh:'開齋節 第2天',         en:'Eid al-Fitr day 2',           tr:'Ramazan Bayramı 2. Gün' },
+  '2026-03-22': { zh:'開齋節 第3天',         en:'Eid al-Fitr day 3',           tr:'Ramazan Bayramı 3. Gün' },
+  '2026-04-23': { zh:'國家主權與兒童節',     en:'National Sovereignty & Children\'s Day', tr:'Ulusal Egemenlik ve Çocuk Bayramı' },
+  '2026-05-01': { zh:'勞動節',               en:'Labour Day',                  tr:'Emek ve Dayanışma Günü' },
+  '2026-05-19': { zh:'青年與體育節',         en:'Youth & Sports Day',          tr:'Atatürk’ü Anma, Gençlik ve Spor Bayramı' },
+  '2026-05-26': { zh:'宰牲節前夕（半天）',   en:'Eid al-Adha eve (half day)',  tr:'Kurban Bayramı Arifesi', half:true },
+  '2026-05-27': { zh:'宰牲節 第1天',         en:'Eid al-Adha day 1',           tr:'Kurban Bayramı 1. Gün' },
+  '2026-05-28': { zh:'宰牲節 第2天',         en:'Eid al-Adha day 2',           tr:'Kurban Bayramı 2. Gün' },
+  '2026-05-29': { zh:'宰牲節 第3天',         en:'Eid al-Adha day 3',           tr:'Kurban Bayramı 3. Gün' },
+  '2026-05-30': { zh:'宰牲節 第4天',         en:'Eid al-Adha day 4',           tr:'Kurban Bayramı 4. Gün' },
+  '2026-07-15': { zh:'民主與全國團結日',     en:'Democracy & National Unity Day', tr:'Demokrasi ve Milli Birlik Günü' },
+  '2026-08-30': { zh:'勝利節',               en:'Victory Day',                 tr:'Zafer Bayramı' },
+  '2026-10-28': { zh:'共和國日前夕（半天）', en:'Republic Day eve (half day)', tr:'Cumhuriyet Bayramı Arifesi', half:true },
+  '2026-10-29': { zh:'共和國日',             en:'Republic Day',                tr:'Cumhuriyet Bayramı' }
+};
+function holidayOf(date){ return HOLIDAYS[date]||null; }
+function holidayName(h){ return (LANG==='zh-Hant'? h.zh : h.en) + ' · ' + h.tr; }
+function holidayShort(h){ return LANG==='zh-Hant'? h.zh : h.en; }
 
 function dayStatus(id,date){
-  if(LEAVE_MARKS[`${id}|${date}`]) return 'leave';
-  if(SICK_MARKS[`${id}|${date}`]) return 'sick';
-  if(BIZ_MARKS[`${id}|${date}`]) return 'business';
+  const key=`${id}|${date}`;
+  if(LEAVE_MARKS[key]) return 'leave';
+  if(SICK_MARKS[key]) return 'sick_doc';
+  if(ABSENT_MARKS[key]) return 'absent';
+  if(BIZ_MARKS[key]) return 'business';
   return 'work';
 }
+/* 沒有出勤紀錄的日子（病假、曠職、休假）不顯示上下班時間 */
+function noPunchDay(st){ return st==='leave'||st==='sick_doc'||st==='absent'; }
+/* 需要打卡的員工名單（noAttendance:true 的人不列入） */
+function rosterIds(){ return Object.keys(EMPLOYEES).filter(k=>!EMPLOYEES[k].noAttendance); }
 function quotaOf(empId,type){ const e=EMPLOYEES[empId]; return (e&&e.quota&&e.quota[type]!=null)?e.quota[type]:0; }
 /* 已核准的請假時數（依類別加總，未分攤前的原始值） */
 function usedLeaveHours(empId,type){
@@ -692,27 +781,33 @@ function usedLeaveHours(empId,type){
 /* ---- 休假帳本 ----
    規則：不管請哪一種假，一律先扣「特休（個人休假）」的剩餘額度；
          特休扣完之後，超出的時數才依假別記到「病假／事假」的累計裡（累計沒有上限）。 */
+function accBucket(type){
+  if(type==='sick_doc'||type==='sick') return 'sick_doc';
+  return 'personal';
+}
 function leaveLedger(empId){
   const annualQuota=quotaOf(empId,'annual');
   let left=annualQuota;
-  const acc={sick:0, personal:0};
+  const acc={sick_doc:0, personal:0};
   LEAVE_REQUESTS
     .filter(r=>r.empId===empId && r.status==='approved')
     .sort((a,b)=> a.date===b.date ? a.reqId-b.reqId : (a.date<b.date?-1:1))
     .forEach(r=>{
-      const fromAnnual=Math.min(left, r.hours);
+      const useAnnual = ANNUAL_FIRST_FOR[r.type]!==false;
+      const fromAnnual = useAnnual ? Math.min(left, r.hours) : 0;
       left-=fromAnnual;
       const rest=r.hours-fromAnnual;
-      if(rest>0) acc[r.type==='sick'?'sick':'personal']+=rest;
+      if(rest>0) acc[accBucket(r.type)]+=rest;
     });
-  return { annualQuota, annualLeft:left, annualUsed:annualQuota-left, sick:acc.sick, personal:acc.personal };
+  return { annualQuota, annualLeft:left, annualUsed:annualQuota-left,
+           sick_doc:acc.sick_doc, personal:acc.personal };
 }
 function remainingLeave(empId){ return leaveLedger(empId).annualLeft; }
 (function seed(){
   const now=new Date();
   const y=now.getFullYear(), m=now.getMonth();
   const days=new Date(y,m+1,0).getDate();
-  Object.keys(EMPLOYEES).forEach((id,ei)=>{
+  rosterIds().forEach((id,ei)=>{
     for(let day=1; day<=days; day++){
       const d=new Date(y,m,day);
       const dow=d.getDay();
@@ -910,6 +1005,7 @@ function collectDays(id){
   Object.keys(LEAVE_MARKS).forEach(k=>{ if(k.startsWith(id+'|')) keys.add(k.split('|')[1]); });
   Object.keys(BIZ_MARKS).forEach(k=>{ if(k.startsWith(id+'|')) keys.add(k.split('|')[1]); });
   Object.keys(SICK_MARKS).forEach(k=>{ if(k.startsWith(id+'|')) keys.add(k.split('|')[1]); });
+  Object.keys(ABSENT_MARKS).forEach(k=>{ if(k.startsWith(id+'|')) keys.add(k.split('|')[1]); });
   return [...keys].sort().reverse();
 }
 function weekdayLabel(dateStr){ const d=new Date(dateStr+'T00:00:00'); return (LANG==='zh-Hant'?WEEKDAY:WEEKDAY_EN)[d.getDay()]; }
@@ -919,7 +1015,7 @@ function renderEmpLog(id){
     const st=dayStatus(id,date);
     const rec = ATT[`${id}|${date}`];
     let inTxt='—',outTxt='—',hrsTxt='—';
-    if(st!=='leave' && st!=='sick' && rec && rec.inMs){
+    if(!noPunchDay(st) && rec && rec.inMs){
       inTxt=fmtTime(rec.inMs); outTxt=rec.outMs?fmtTime(rec.outMs):'—';
       if(rec.outMs) hrsTxt=fmtHMS(hoursBetween(rec.inMs,rec.outMs));
     }
@@ -959,7 +1055,10 @@ document.getElementById('btnClockOut').onclick=()=>simClock('out');
 /* ============================================================
    請假系統
    ============================================================ */
-const LEAVE_TYPE_LABELS = ()=>({annual:t('type_annual'), sick:t('type_sick'), personal:t('type_personal')});
+const LEAVE_TYPE_LABELS = ()=>({
+  annual:t('type_annual'), sick_doc:t('type_sick_doc'),
+  sick:t('type_sick'), personal:t('type_personal')
+});
 function typeLabel(ty){ return LEAVE_TYPE_LABELS()[ty]||ty; }
 /* 依起訖時段算時數（扣午休重疊，四捨五入到 0.5） */
 function calcLeaveHours(startMin,endMin){
@@ -977,6 +1076,14 @@ function populateReqTypeSelect(){
   sel.innerHTML=LEAVE_TYPES.map(ty=>`<option value="${ty}">${typeLabel(ty)}</option>`).join('');
 }
 function dayStr(h){ return (h/HOURS_PER_DAY).toFixed(h%HOURS_PER_DAY?1:0); }
+function accCard(cls,label,hours){
+  return `<div class="quota-card">
+      <div class="qt ${cls}">${label}</div>
+      <div class="qtag acc">${t('q_accrued')}</div>
+      <div class="qv">${hours} ${t('hours_unit')}</div>
+      <div class="qsub">${dayStr(hours)} ${t('days_unit')}</div>
+    </div>`;
+}
 function quotaCardsHtml(id){
   const L=leaveLedger(id);
   return `
@@ -986,18 +1093,8 @@ function quotaCardsHtml(id){
       <div class="qv ${L.annualLeft<=HOURS_PER_DAY?'low':''}">${dayStr(L.annualLeft)} ${t('days_unit')}</div>
       <div class="qsub">${L.annualLeft} / ${L.annualQuota} ${t('hours_unit')}</div>
     </div>
-    <div class="quota-card">
-      <div class="qt type-sick">${t('type_sick')}</div>
-      <div class="qtag acc">${t('q_accrued')}</div>
-      <div class="qv">${L.sick} ${t('hours_unit')}</div>
-      <div class="qsub">${dayStr(L.sick)} ${t('days_unit')}</div>
-    </div>
-    <div class="quota-card">
-      <div class="qt type-personal">${t('type_personal')}</div>
-      <div class="qtag acc">${t('q_accrued')}</div>
-      <div class="qv">${L.personal} ${t('hours_unit')}</div>
-      <div class="qsub">${dayStr(L.personal)} ${t('days_unit')}</div>
-    </div>`;
+    ${accCard('type-sick_doc', t('type_sick_doc'), L.sick_doc)}
+    ${accCard('type-personal', t('type_personal'), L.personal)}`;
 }
 function renderEmpLeavePage(id){
   populateReqTypeSelect();
@@ -1242,8 +1339,9 @@ function initCalendarState(){
   if(CAL_Y==null){ CAL_Y=n.getFullYear(); CAL_M=n.getMonth(); }
   // 員工下拉
   const sel=document.getElementById('calEmp');
-  sel.innerHTML=Object.keys(EMPLOYEES).map(id=>`<option value="${id}">${EMPLOYEES[id].name}（#${EMPLOYEES[id].id}）</option>`).join('');
-  if(CAL_EMP==null || !EMPLOYEES[CAL_EMP]) CAL_EMP=Object.keys(EMPLOYEES)[0];
+  const roster=rosterIds();
+  sel.innerHTML=roster.map(id=>`<option value="${id}">${EMPLOYEES[id].name}（#${EMPLOYEES[id].id}）</option>`).join('');
+  if(CAL_EMP==null || !EMPLOYEES[CAL_EMP] || EMPLOYEES[CAL_EMP].noAttendance) CAL_EMP=roster[0];
   sel.value=CAL_EMP;
 }
 function renderMonthCalendar(){
@@ -1261,7 +1359,11 @@ function renderMonthCalendar(){
   dowLabels.forEach((d,i)=>{ cells+=`<div class="cal-dow ${i===0?'sun':(i===6?'sat':'')}">${d}</div>`; });
   for(let i=0;i<firstDow;i++) cells+=`<div class="cal-cell empty"></div>`;
 
-  let total=0;
+  /* 出勤天數＝實際到班（上班）＋公出。
+     病假(有證明) 不算曠職，但公司不支薪，另外列出並依 SGK 規則拆成前2天／第3天起。
+     曠職（沒有醫生證明的缺席）無薪，且要提醒連續天數。 */
+  const cnt={work:0, biz:0, sick_doc:0, absent:0, leave:0, missing:0, holiday:0, holidayHalf:0};
+  const stByDay={};
   for(let day=1; day<=dim; day++){
     const date=`${y}-${pad(m+1)}-${pad(day)}`;
     const dd=new Date(y,m,day);
@@ -1270,27 +1372,42 @@ function renderMonthCalendar(){
     const st=dayStatus(id,date);
     const rec=ATT[`${id}|${date}`];
 
-    let cls='cal-cell', badge='', hrsHtml='';
+    let cls='cal-cell', badge='', hrsHtml='', eff='';
     if(isToday) cls+=' today';
     if(weekend) cls+=' weekend';
 
     if(st==='leave'){
+      cnt.leave++; eff='leave';
       cls+=' leave'; badge='<span class="cal-badge leave"></span>';
       hrsHtml=`<span class="cal-hrs">${t('st_leave')}</span>`;
-    } else if(st==='sick'){
+    } else if(st==='sick_doc'){
+      cnt.sick_doc++; eff='sick_doc';
       cls+=' sick'; badge='<span class="cal-badge sick"></span>';
-      hrsHtml=`<span class="cal-hrs">${t('st_sick')}</span>`;
+      hrsHtml=`<span class="cal-hrs">${t('st_sick_doc')}</span>`;
+    } else if(st==='absent'){
+      cnt.absent++; eff='absent';
+      cls+=' absent'; badge='<span class="cal-badge absent"></span>';
+      hrsHtml=`<span class="cal-hrs">${t('st_absent')}</span>`;
     } else if(st==='business'){
+      cnt.biz++; eff='biz';
       cls+=' biz'; badge='<span class="cal-badge biz"></span>';
-      if(rec && rec.inMs && rec.outMs){ total+=HOURS_PER_DAY; hrsHtml=`<span class="cal-hrs">${t('st_business')} ${HOURS_PER_DAY}h</span>`; }
-      else hrsHtml=`<span class="cal-hrs">${t('st_business')}</span>`;
+      hrsHtml=`<span class="cal-hrs">${t('st_business')} ✓</span>`;
     } else if(rec && rec.inMs && rec.outMs && dd<=now){
-      total+=HOURS_PER_DAY; cls+=' green'; badge='<span class="cal-badge green"></span>';
-      hrsHtml=`<span class="cal-hrs">${HOURS_PER_DAY}.0h</span>`;
+      cnt.work++; eff='work';
+      cls+=' green'; badge='<span class="cal-badge green"></span>';
+      hrsHtml=`<span class="cal-hrs">✓</span>`;
+    } else if(holidayOf(date)){
+      const h=holidayOf(date);
+      if(h.half) cnt.holidayHalf++; else cnt.holiday++;
+      eff='holiday';
+      cls+=' holiday'; badge='<span class="cal-badge holiday"></span>';
+      hrsHtml=`<span class="cal-hrs">${holidayShort(h)}</span>`;
     } else if(rec && rec.inMs && !rec.outMs && dd<=now){
+      cnt.missing++; eff='missing';
       cls+=' red'; badge='<span class="cal-badge red"></span>';
       hrsHtml=`<span class="cal-hrs">${t('st_missing')}</span>`;
     }
+    stByDay[day]=eff;
     cells+=`<div class="${cls}" title="${date}">
       ${badge}
       <div class="cal-daynum ${weekend?'off':''}">${day}</div>
@@ -1298,7 +1415,41 @@ function renderMonthCalendar(){
     </div>`;
   }
   document.getElementById('calGrid').innerHTML=cells;
-  document.getElementById('calTotal').textContent=fmtHMS(total);
+
+  /* --- 病假(有證明)：每一段連續期間前 SGK_WAIT_DAYS 天無給付，之後由 SGK 給付 2/3 日薪 --- */
+  let sickWait=0, sickPaid=0, run=0;
+  for(let day=1; day<=dim+1; day++){
+    if(stByDay[day]==='sick_doc'){ run++; }
+    else if(run>0){
+      const w=Math.min(run,SGK_WAIT_DAYS);
+      sickWait+=w; sickPaid+=run-w; run=0;
+    }
+  }
+  /* --- 曠職：只看工作日（一～五）的連續天數 --- */
+  let absRun=0, absMaxRun=0, absWorkdays=0;
+  for(let day=1; day<=dim; day++){
+    const dow=new Date(y,m,day).getDay();
+    if(dow===0||dow===6) continue;            // 週末不列入連續計算
+    const hd=holidayOf(`${y}-${pad(m+1)}-${pad(day)}`);
+    if(hd && !hd.half) continue;              // 國定假日不是工作日
+    if(stByDay[day]==='absent'){ absRun++; absWorkdays++; absMaxRun=Math.max(absMaxRun,absRun); }
+    else absRun=0;
+  }
+
+  const days=cnt.work+cnt.biz;
+  document.getElementById('calTotal').textContent=`${days} ${t('days_unit')}`;
+  const co = (LANG==='en')?': ':'：', sep=(LANG==='en')?'  |  ':'　｜　';
+  const halfTxt = cnt.holidayHalf?` +${cnt.holidayHalf} ${t('half_day')}`:'';
+  const d1=`${t('sum_paid')}${co}${t('m_work')} ${cnt.work} · ${t('st_business')} ${cnt.biz} · ${t('st_leave')} ${cnt.leave} · ${t('sum_holiday')} ${cnt.holiday}${halfTxt}`;
+  const pO=(LANG==='en')?' (':'（', pC=(LANG==='en')?')':'）';
+  const d2=`${t('sum_sick')}${co}${cnt.sick_doc} ${t('days_unit')}${pO}${t('sgk_wait')} ${sickWait} · ${t('sgk_paid')} ${sickPaid}${pC}`;
+  const d3=`${t('sum_unpaid')}${co}${t('st_absent')} ${cnt.absent} · ${t('st_missing')} ${cnt.missing}`;
+  document.getElementById('calBreak').innerHTML = d1+sep+d2+sep+d3;
+
+  const warn=document.getElementById('calWarn');
+  if(absMaxRun>=2)        warn.innerHTML=`<div class="warn-box">${t('warn_absent2')}</div>`;
+  else if(absWorkdays>=3) warn.innerHTML=`<div class="warn-box soft">${t('warn_absent3')}</div>`;
+  else                    warn.innerHTML='';
 }
 document.getElementById('calEmp').addEventListener('change',e=>{ CAL_EMP=e.target.value; renderMonthCalendar(); });
 document.getElementById('calPrev').onclick=()=>{ CAL_M--; if(CAL_M<0){CAL_M=11;CAL_Y--;} renderMonthCalendar(); };
@@ -1309,7 +1460,10 @@ function statusPillFor(id,date){
   const st=dayStatus(id,date);
   const rec=ATT[`${id}|${date}`];
   if(st==='leave')    return `<span class="pill leave">${t('st_leave')}</span>`;
-  if(st==='sick')     return `<span class="pill sick">${t('st_sick')}</span>`;
+  if(st==='sick_doc') return `<span class="pill sick">${t('st_sick_doc')}</span>`;
+  if(st==='absent')   return `<span class="pill absent">${t('st_absent')}</span>`;
+  if(st==='work' && !ATT[`${id}|${date}`] && holidayOf(date))
+    return `<span class="pill holiday">${holidayShort(holidayOf(date))}</span>`;
   if(st==='business') return `<span class="pill biz">${t('st_business')}</span>`;
   if(rec && rec.inMs) return isLate(rec.inMs)?`<span class="pill late">${t('st_late')}</span>`:`<span class="pill ok">${t('st_normal')}</span>`;
   return `<span class="pill">${t('st_off')}</span>`;
@@ -1322,15 +1476,19 @@ function renderDaily(){
   if(!dateInput.value) dateInput.value=ymd(new Date());
   const date=dateInput.value;
   let rows='';
-  Object.keys(EMPLOYEES).forEach(id=>{
+  rosterIds().forEach(id=>{
     const e=EMPLOYEES[id];
     const st=dayStatus(id,date);
     const rec=ATT[`${id}|${date}`];
     let inTxt='—',outTxt='—',inState=`<span class="pill">${t('st_off')}</span>`,outState=`<span class="pill">${t('st_off')}</span>`,hrs='—';
     if(st==='leave'){
       inState=outState=`<span class="pill leave">${t('st_leave')}</span>`;
-    }else if(st==='sick'){
-      inState=outState=`<span class="pill sick">${t('st_sick')}</span>`;
+    }else if(st==='sick_doc'){
+      inState=outState=`<span class="pill sick">${t('st_sick_doc')}</span>`;
+    }else if(st==='absent'){
+      inState=outState=`<span class="pill absent">${t('st_absent')}</span>`;
+    }else if(!(rec&&rec.inMs) && holidayOf(date)){
+      inState=outState=`<span class="pill holiday">${holidayShort(holidayOf(date))}</span>`;
     }else{
       if(rec && rec.inMs){
         inTxt=fmtTime(rec.inMs);
@@ -1362,14 +1520,17 @@ function renderDaily(){
         <th>${t('th_hours')}</th><th></th></tr>
     ${rows}`;
   // 橫列紀錄預設一定開啟：若尚未選人，預設第一位
-  if(!DRILL_ID || !EMPLOYEES[DRILL_ID]) DRILL_ID=Object.keys(EMPLOYEES)[0];
+  if(!DRILL_ID || !EMPLOYEES[DRILL_ID] || EMPLOYEES[DRILL_ID].noAttendance) DRILL_ID=rosterIds()[0];
   renderDrill(DRILL_ID);
 }
 document.getElementById('dailyDate').addEventListener('change',renderDaily);
+document.getElementById('drillEmp').addEventListener('change',e=>{ DRILL_ID=e.target.value; renderDaily(); });
 
 /* --- 個人 drilldown（橫列打卡紀錄，如附件3）--- */
 function renderDrill(id){
   const e=EMPLOYEES[id];
+  const sel=document.getElementById('drillEmp');
+  sel.innerHTML=rosterIds().map(k=>`<option value="${k}"${k===id?' selected':''}>${EMPLOYEES[k].name}（#${k}）</option>`).join('');
   document.getElementById('drillAvatar').innerHTML=avatarInner(e.photoUrl);
   document.getElementById('drillName').textContent=e.name;
   document.getElementById('drillMeta').textContent=`#${e.id}`;
@@ -1377,7 +1538,7 @@ function renderDrill(id){
     const st=dayStatus(id,date);
     const rec=ATT[`${id}|${date}`];
     let inTxt='—',outTxt='—',hrsTxt='—';
-    if(st!=='leave' && st!=='sick' && rec && rec.inMs){
+    if(!noPunchDay(st) && rec && rec.inMs){
       inTxt=fmtTime(rec.inMs); outTxt=rec.outMs?fmtTime(rec.outMs):'—';
       if(rec.outMs) hrsTxt=fmtHMS(hoursBetween(rec.inMs,rec.outMs));
     }
@@ -1411,7 +1572,7 @@ window.openTimeModal=(id,date)=>{
 function toggleModalTimes(){
   // 休假/病假時隱藏時間欄位；上班/公出顯示
   const st=document.getElementById('modalStatus').value;
-  document.getElementById('modalTimes').style.display = (st==='leave'||st==='sick')?'none':'block';
+  document.getElementById('modalTimes').style.display = noPunchDay(st)?'none':'block';
 }
 document.getElementById('modalStatus').addEventListener('change',toggleModalTimes);
 document.getElementById('modalCancel').onclick=()=>{ document.getElementById('timeModal').style.display='none'; MODAL_CTX=null; };
@@ -1421,11 +1582,13 @@ document.getElementById('modalSave').onclick=()=>{
   const {id,date}=MODAL_CTX;
   const st=document.getElementById('modalStatus').value;
   const key=`${id}|${date}`;
-  delete LEAVE_MARKS[key]; delete BIZ_MARKS[key]; delete SICK_MARKS[key];
+  delete LEAVE_MARKS[key]; delete BIZ_MARKS[key]; delete SICK_MARKS[key]; delete ABSENT_MARKS[key];
   if(st==='leave'){
     LEAVE_MARKS[key]=true;
-  } else if(st==='sick'){
-    SICK_MARKS[key]=true;
+  } else if(st==='sick_doc'){
+    SICK_MARKS[key]='doc';
+  } else if(st==='absent'){
+    ABSENT_MARKS[key]=true;
   } else {
     if(st==='business') BIZ_MARKS[key]=true;
     const parse=(v)=>{ if(!v) return null; const p=v.split(':').map(Number); const d=new Date(date+'T00:00:00'); d.setHours(p[0]||0,p[1]||0,p[2]||0,0); return d.getTime(); };
@@ -1465,6 +1628,10 @@ function empEditForm(id, isNew){
               <option value="admin" ${e.role==='admin'?'selected':''}>${t('role_admin')}</option>
             </select>
           </div>
+          <div class="field"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="noatt_${key}" ${e.noAttendance?'checked':''} style="width:auto;margin:0">
+            <span>${t('no_attendance')}</span>
+          </label></div>
           <div class="field"><label>${t('q_annual')}</label><input id="qa_${key}" type="number" min="0" step="8" value="${(e.quota&&e.quota.annual!=null)?e.quota.annual:112}"></div>
         </div>
       </div>
@@ -1478,6 +1645,7 @@ function empEditForm(id, isNew){
       <div class="msg err" id="editMsg_${key}"></div>
     </div>`;
 }
+function rosterLabel(e){ return e.noAttendance ? ' · <span style="color:#5b6b78">'+t('no_attendance')+'</span>' : ''; }
 function mailLabel(e){
   if(!e.email && e.pw) return '<span style="color:#5b6b78">'+t('custom_pw')+'</span>';
   if(!e.email) return '<span style="color:var(--bad)">⚠ '+t('no_email')+'</span>';
@@ -1492,7 +1660,7 @@ function renderEmpAdmin(){
     const e=EMPLOYEES[id];
     return `<div class="emp-row">
       <div class="avatar">${avatarInner(e.photoUrl)}</div>
-      <div class="emp-info"><div class="n">${e.name||'(—)'}</div><div class="e">#${e.id} · ${t('role_'+(e.role==='admin'?'admin':'emp'))} · ${mailLabel(e)}</div></div>
+      <div class="emp-info"><div class="n">${e.name||'(—)'}</div><div class="e">#${e.id} · ${t('role_'+(e.role==='admin'?'admin':'emp'))} · ${mailLabel(e)}${rosterLabel(e)}</div></div>
       <button class="btn-mini" onclick="toggleEdit('${id}')">${t('edit')}</button>
     </div>
     ${empEditForm(id,false)}`;
@@ -1532,6 +1700,7 @@ window.saveEmp=(id)=>{
     role:document.getElementById('role_'+id).value,
     empNo:e.empNo,
     photoUrl:document.getElementById('photodata_'+id).value,
+    noAttendance:document.getElementById('noatt_'+id).checked,
     quota:{ annual:parseInt(document.getElementById('qa_'+id).value,10)||0, sick:0, personal:0 }
   };
   if(newId!==id){
@@ -1559,6 +1728,7 @@ window.addEmployee=()=>{
     id, name:document.getElementById('name_new').value.trim()||('Staff '+id),
     email, pw:customPw||email, role:document.getElementById('role_new').value, empNo:id,
     photoUrl:document.getElementById('photodata_new').value,
+    noAttendance:document.getElementById('noatt_new').checked,
     quota:{ annual:parseInt(document.getElementById('qa_new').value,10)||0, sick:0, personal:0 }
   };
   document.getElementById('addFormSlot').innerHTML='';
@@ -1574,6 +1744,7 @@ window.deleteEmp=(id)=>{
   Object.keys(LEAVE_MARKS).forEach(k=>{ if(k.startsWith(id+'|')) delete LEAVE_MARKS[k]; });
   Object.keys(BIZ_MARKS).forEach(k=>{ if(k.startsWith(id+'|')) delete BIZ_MARKS[k]; });
   Object.keys(SICK_MARKS).forEach(k=>{ if(k.startsWith(id+'|')) delete SICK_MARKS[k]; });
+  Object.keys(ABSENT_MARKS).forEach(k=>{ if(k.startsWith(id+'|')) delete ABSENT_MARKS[k]; });
   for(let i=LEAVE_REQUESTS.length-1;i>=0;i--){ if(LEAVE_REQUESTS[i].empId===id) LEAVE_REQUESTS.splice(i,1); }
   if(DRILL_ID===id) DRILL_ID=null;
   if(CAL_EMP===id) CAL_EMP=null;
@@ -1581,7 +1752,7 @@ window.deleteEmp=(id)=>{
 };
 
 function reKeyEmployeeData(oldId,newId){
-  [ATT,LEAVE_MARKS,BIZ_MARKS,SICK_MARKS].forEach(store=>{
+  [ATT,LEAVE_MARKS,BIZ_MARKS,SICK_MARKS,ABSENT_MARKS].forEach(store=>{
     Object.keys(store).forEach(k=>{
       if(k.startsWith(oldId+'|')){ const nk=newId+'|'+k.split('|')[1]; store[nk]=store[k]; delete store[k]; }
     });
