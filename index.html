@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>員工打卡系統 / Staff Check-In (Demo)</title>
+<title>員工打卡系統 / Staff Check-In</title>
 <style>
   :root{
     --ink:#1c2b3a;
@@ -181,6 +181,9 @@
   .cal-cell.holiday{ background:#efeafb; border-color:#cfc4ee; }
   .cal-cell.holiday .cal-hrs{ color:#5b3fa8; font-size:10px; font-weight:700; }
   .cal-badge.holiday{ background:#5b3fa8; }
+  .db-state{ font-size:11px; color:#5b6b78; padding:3px 9px; border-radius:10px; background:#eef1f5; white-space:nowrap; }
+  .db-state.ok{ background:var(--good-bg); color:var(--good); }
+  .db-state.bad{ background:#fbe6e2; color:var(--bad); }
   .warn-box{ margin-top:10px; padding:10px 12px; border-radius:8px; font-size:12px; line-height:1.7;
              background:#fbe6e2; border:1px solid #f0c8c0; color:#8f1d10; }
   .warn-box.soft{ background:#fdf3e2; border-color:#e8d29a; color:var(--warn); }
@@ -267,8 +270,6 @@
 <body>
 <div class="page"><div class="wrap">
 
-  <div class="demo-flag" id="demoFlag" data-i18n="demo_flag">🧪 樣本測試版 — 使用假資料，不會寫入 Firebase。打卡按鈕僅在畫面上模擬。</div>
-
   <!-- ===== LOGIN ===== -->
   <div id="loginView">
     <div class="card">
@@ -279,16 +280,16 @@
       </div>
       <div class="ip-banner" id="ipBanner">…</div>
       <div class="field">
-        <label data-i18n="login_user">姓名（或四碼員工編號）</label>
+        <label data-i18n="login_user">姓名（或公司 Email）</label>
         <input type="text" id="loginId" placeholder="osman" autocomplete="username" autocapitalize="none">
       </div>
       <div class="field">
-        <label data-i18n="login_pw_email">密碼（員工＝你的 Email）</label>
+        <label data-i18n="login_pw_email">密碼</label>
         <input type="password" id="loginPw" placeholder="name@company.com" autocomplete="current-password" autocapitalize="none">
       </div>
       <button class="btn-primary" id="loginBtn" data-i18n="login_btn">登入</button>
       <div class="msg err" id="loginMsg"></div>
-      <div class="demo-accounts" data-i18n="login_help">用你的名字登入（大小寫不拘）。員工的密碼是自己的公司 Email；主控端請用另外提供的密碼。</div>
+      <div class="demo-accounts" data-i18n="login_help">用你的名字登入（大小寫不拘），也可以直接打自己的公司 Email。密碼忘記了請找主控端重寄。</div>
     </div>
   </div>
 
@@ -298,6 +299,7 @@
       <div class="brand"><img id="brandLogo" alt=""><h1 data-i18n="sys_title">員工打卡系統</h1></div>
       <div class="topbar-right">
         <span class="clock" id="liveClock">--:--:--</span>
+        <span class="db-state" id="dbState"></span>
         <span class="role-badge" id="roleBadge">—</span>
         <button class="lang-toggle" id="langToggle">EN</button>
         <button class="btn-ghost" id="logoutBtn" data-i18n="logout">登出</button>
@@ -325,7 +327,17 @@
           <button class="btn-out" id="btnClockOut" data-i18n="clock_out">下班打卡</button>
         </div>
         <div class="clock-flash" id="clockFlash"></div>
-        <p class="hint" data-i18n="emp_rule">上班取當天最早、下班取當天最晚。重複打卡不覆蓋。（樣本測試：僅模擬，不寫入資料庫）</p>
+        <div class="divider"></div>
+        <p class="section-title" data-i18n="change_pw">更改密碼</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+          <div class="field" style="flex:1;min-width:180px;margin:0;">
+            <label data-i18n="new_pw">新密碼（至少 6 碼）</label>
+            <input type="password" id="newPw" autocomplete="new-password">
+          </div>
+          <button class="btn-mini" id="changePwBtn" style="padding:10px 16px" data-i18n="save">儲存</button>
+        </div>
+        <div class="msg" id="pwMsg"></div>
+        <p class="hint" data-i18n="emp_rule">上班取當天最早、下班取當天最晚。重複打卡不覆蓋。</p>
       </div>
 
       <div class="card">
@@ -445,7 +457,7 @@
       <div class="card tabpanel" id="panel-employees" style="display:none;">
         <p class="section-title" data-i18n="admin_emp_title">員工資料設定（照片 / 姓名 / 編號）</p>
         <div id="empAdminList"></div>
-        <p class="hint" data-i18n="emp_hint">照片留空時顯示人形圖示，可貼圖片網址替換。（樣本測試：修改僅存在畫面，不寫入資料庫）</p>
+        <p class="hint" data-i18n="emp_hint">照片留空時顯示人形圖示，可貼圖片網址替換。</p>
       </div>
 
       <!-- Leave review -->
@@ -493,10 +505,13 @@
 
 </div></div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 /* ============================================================
-   樣本測試版（純 UI）— 不接 Firebase、假資料、模擬打卡
-   之後確認 UI 後，可把這裡的假資料換成 Firebase 讀寫。
+   正式版 — Firebase Authentication 登入 + Firestore 儲存
+   專案：office-checkin-855a6
    ============================================================ */
 
 /* ---- LOGO（base64，稍後由注入腳本填入）---- */
@@ -523,44 +538,55 @@ const BLOCK_IF_IP_UNKNOWN  = true;                 // 查不到 IP 時：true=�
 let CLIENT_IP = null;
 let IP_STATE  = 'checking';   // checking | ok | blocked | error | off
 
-/* ---- 員工資料（樣本存記憶體）----
+/* ---- 員工資料 ----
    ★ 帳號 = 姓名（大小寫不拘，也可以打四碼編號）
    ★ 密碼 = email
    ★ 請把下面的 email 換成同仁真實信箱，換掉之後密碼就跟著變。 */
-const ADMIN_PW = "03702716";   // 主控端共用密碼
-
-const EMPLOYEES = {
-  /* 員工：密碼＝Email */
-  "0001": { id:"0001", role:"employee", name:"Osman", email:"osman@taitra.org.tw", empNo:"0001", photoUrl:"", quota:{annual:112, sick:0, personal:0} },
-  "0002": { id:"0002", role:"employee", name:"Murat", email:"murat@taitra.org.tw", empNo:"0002", photoUrl:"", quota:{annual:112, sick:0, personal:0} },
-  "0003": { id:"0003", role:"employee", name:"Donus", email:"donus@taitra.org.tw", empNo:"0003", photoUrl:"", quota:{annual:112, sick:0, personal:0} },
-  /* 主控端：密碼＝ADMIN_PW（不是 Email）。Email 欄留空即可，要填也行。 */
-  "0004": { id:"0004", role:"admin",    name:"EVA",   email:"", pw:ADMIN_PW, empNo:"0004", photoUrl:"", noAttendance:true, quota:{annual:112, sick:0, personal:0} },
-  "0005": { id:"0005", role:"admin",    name:"Tasha", email:"", pw:ADMIN_PW, empNo:"0005", photoUrl:"", noAttendance:true, quota:{annual:112, sick:0, personal:0} }
+/* ============================================================
+   ★ Firebase（正式資料儲存）
+   ============================================================ */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyDau5hZr9h9Iqt_JfLWH8VtQVHw-0fb4to",
+  authDomain: "office-checkin-855a6.firebaseapp.com",
+  projectId: "office-checkin-855a6",
+  storageBucket: "office-checkin-855a6.firebasestorage.app",
+  messagingSenderId: "507140006307",
+  appId: "1:507140006307:web:bf51eccf49377e1bb4fa16"
 };
-/* 沒有指定 pw 的人，密碼就等於 email */
-Object.keys(EMPLOYEES).forEach(k=>{ if(!EMPLOYEES[k].pw) EMPLOYEES[k].pw = EMPLOYEES[k].email; });
-const PLACEHOLDER_MAIL = /@example\.com$/i;   // 還沒換成真信箱的會在「員工設定」標警告
+firebase.initializeApp(FIREBASE_CONFIG);
+const AUTH = firebase.auth();
+const DB   = firebase.firestore();
+/* 第二個 app 實例：主控端新增員工帳號時用，才不會把自己的登入狀態換掉 */
+let CREATOR_APP = null;
+function creatorAuth(){
+  if(!CREATOR_APP) CREATOR_APP = firebase.initializeApp(FIREBASE_CONFIG,'creator');
+  return CREATOR_APP.auth();
+}
+AUTH.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(()=>{});
+
+/* 員工資料由 Firestore 帶入，key = Auth 的 uid */
+let EMPLOYEES = {};
+const PLACEHOLDER_MAIL = /@example\.com$/i;
+function empNoOf(id){ const e=EMPLOYEES[id]; return (e&&(e.empNo||e.id))||id; }
 
 /* ---- i18n ---- */
 const I18N = {
   'zh-Hant':{
     emp_id:"員工編號（四碼）", password:"密碼", login_btn:"登入", logout:"登出",
     sys_title:"員工打卡系統",
-    demo_flag:"🧪 樣本測試版 — 使用假資料，不會寫入 Firebase。打卡按鈕僅在畫面上模擬。",
-    login_user:"姓名（或四碼員工編號）", login_pw_email:"密碼（員工＝你的 Email）",
-    login_help:"用你的名字登入（大小寫不拘）。員工的密碼是自己的公司 Email；主控端請用另外提供的密碼。",
+    login_user:"姓名（或公司 Email）", login_pw_email:"密碼",
+    login_help:"用你的名字登入（大小寫不拘），也可以直接打自己的公司 Email。密碼忘記了請找主控端重寄。",
     ip_checking:"⏳ 正在確認網路位置…",
     ip_ok:"✅ 公司網路，可以打卡",
     ip_blocked:"🔒 非公司網路，無法登入打卡。你目前的 IP：",
     ip_error:"⚠️ 無法確認網路位置，請改用公司網路或聯絡主控端。",
     ip_off:"IP 鎖定目前關閉。",
     ip_need_office:"請在公司網路登入打卡。目前 IP：",
-    email_pw:"Email（員工的登入密碼）", no_email:"尚未設定 Email", mail_placeholder:"⚠ 請改成真實 Email",
+    email_pw:"Email（登入帳號）", no_email:"尚未設定 Email", mail_placeholder:"⚠ 請改成真實 Email",
     bad_email:"請填 Email 或另設密碼，兩者至少要有一個。",
     pw_field:"另設密碼（留空＝用 Email 當密碼）", custom_pw:"自訂密碼",
     clock_in:"上班打卡", clock_out:"下班打卡",
-    emp_rule:"上班取當天最早、下班取當天最晚。重複打卡不覆蓋。（樣本測試：僅模擬，不寫入資料庫）",
+    emp_rule:"上班取當天最早、下班取當天最晚。重複打卡不覆蓋。",
     my_log:"我的考勤紀錄",
     tab_monthly:"月總表", tab_daily:"每日狀況", tab_emp:"員工設定",
     admin_month_title:"月總表 — 每人每日工時", select_month:"選擇月份",
@@ -569,7 +595,7 @@ const I18N = {
     admin_daily_title:"每日打卡狀況", select_date:"選擇日期",
     daily_hint:"下方的橫列紀錄可用「選擇員工」切換，或直接點表格任一列。「編輯」可改上／下班時間與狀態。",
     admin_emp_title:"員工資料設定（照片 / 姓名 / 編號）",
-    emp_hint:"照片留空時顯示人形圖示，可貼圖片網址替換。（樣本測試：修改僅存在畫面，不寫入資料庫）",
+    emp_hint:"照片留空時顯示人形圖示，可貼圖片網址替換。",
     back:"返回", row_log:"橫列式打卡紀錄",
     role_admin:"主控端", role_emp:"員工",
     th_date:"日期", th_weekday:"星期", th_in:"上班時間", th_out:"下班時間", th_hours:"工時", th_status:"狀態",
@@ -605,6 +631,18 @@ const I18N = {
     total_days:"當月出勤天數", sum_counted:"計入", sum_excluded:"未計入", select_emp:"選擇員工",
     st_holiday:"國定假日（有薪）", sum_holiday:"國定假日", half_day:"半天",
     no_attendance:"不列入打卡名單（不需打卡）",
+    signing_in:"登入中…", net_error:"連不上伺服器，請檢查網路後再試。",
+    no_profile:"這個帳號還沒有員工資料，請找主控端設定。",
+    db_loading:"⏳ 連線中", db_ok:"☁ 已連線", db_error:"⚠ 連線異常",
+    save_fail:"儲存失敗，請再試一次（或檢查網路／權限）。", saved:"已儲存。",
+    creating:"建立帳號中…", email_taken:"這個 Email 已經有帳號了。",
+    pw_too_short:"密碼至少 6 碼。", name_taken:"這個名字已經有人用了（登入要靠名字，不能重複）。",
+    need_name:"請輸入姓名。",
+    emp_no:"員工工號（四碼）", init_pw:"初始密碼（至少 6 碼）",
+    pw_reset_hint:"密碼", send_reset:"寄送重設密碼信",
+    reset_sent:"重設密碼信已寄出：", deleted_note:"員工資料已刪除。Auth 帳號請到 Firebase Console 的 Authentication 一併移除。",
+    change_pw:"更改密碼", new_pw:"新密碼（至少 6 碼）", pw_changed:"密碼已更新。",
+    pw_relogin:"為了安全，請先登出重新登入再改密碼。",
     lg_counted:"有打勾的日子才計入出勤天數",
     sum_paid:"公司支薪", sum_sick:"病假（有證明，公司不支薪）",
     sgk_wait:"前2天無給付", sgk_paid:"SGK 給付 2/3 日薪",
@@ -617,20 +655,19 @@ const I18N = {
   'en':{
     emp_id:"Employee ID (4 digits)", password:"Password", login_btn:"Log In", logout:"Log Out",
     sys_title:"Staff Check-In",
-    demo_flag:"🧪 Demo build — sample data only, nothing is written to Firebase. Clock buttons are simulated.",
-    login_user:"Name (or 4-digit staff ID)", login_pw_email:"Password (staff: your email)",
-    login_help:"Log in with your name (not case-sensitive). Staff passwords are their own company email; admins use the password provided separately.",
+    login_user:"Name (or company email)", login_pw_email:"Password",
+    login_help:"Log in with your name (not case-sensitive) or your company email. Ask the admin to resend your password if you forget it.",
     ip_checking:"⏳ Checking your network…",
     ip_ok:"✅ Office network — you can clock in",
     ip_blocked:"🔒 Not the office network, login is disabled. Your IP: ",
     ip_error:"⚠️ Could not check your network. Please use the office network or contact the admin.",
     ip_off:"IP lock is currently off.",
     ip_need_office:"Please log in from the office network. Current IP: ",
-    email_pw:"Email (staff login password)", no_email:"No email set", mail_placeholder:"⚠ Replace with a real email",
+    email_pw:"Email (login account)", no_email:"No email set", mail_placeholder:"⚠ Replace with a real email",
     bad_email:"Enter an email or set a password — at least one is required.",
     pw_field:"Custom password (blank = use email)", custom_pw:"Custom password",
     clock_in:"Clock In", clock_out:"Clock Out",
-    emp_rule:"Earliest clock-in and latest clock-out per day are kept; repeats don't overwrite. (Demo: simulated only, nothing is saved.)",
+    emp_rule:"Earliest clock-in and latest clock-out per day are kept; repeats don't overwrite.",
     my_log:"My attendance",
     tab_monthly:"Monthly", tab_daily:"Daily", tab_emp:"Employees",
     admin_month_title:"Monthly overview — daily hours per person", select_month:"Month",
@@ -675,6 +712,18 @@ const I18N = {
     total_days:"Days worked this month", sum_counted:"Counted", sum_excluded:"Not counted", select_emp:"Select employee",
     st_holiday:"Public holiday (paid)", sum_holiday:"Public holidays", half_day:"half day",
     no_attendance:"Not on the clock-in roster",
+    signing_in:"Signing in…", net_error:"Can't reach the server. Check your connection and try again.",
+    no_profile:"This account has no employee profile yet. Ask the admin to set it up.",
+    db_loading:"⏳ Connecting", db_ok:"☁ Synced", db_error:"⚠ Connection problem",
+    save_fail:"Save failed. Please try again (check network or permissions).", saved:"Saved.",
+    creating:"Creating account…", email_taken:"That email already has an account.",
+    pw_too_short:"Password must be at least 6 characters.", name_taken:"That name is already taken (names are used to log in).",
+    need_name:"Please enter a name.",
+    emp_no:"Staff ID (4 digits)", init_pw:"Initial password (min 6 chars)",
+    pw_reset_hint:"Password", send_reset:"Send password reset email",
+    reset_sent:"Password reset email sent to ", deleted_note:"Employee profile deleted. Remove the Auth user in the Firebase Console as well.",
+    change_pw:"Change password", new_pw:"New password (min 6 chars)", pw_changed:"Password updated.",
+    pw_relogin:"For security, please sign out and back in before changing your password.",
     lg_counted:"Only ticked days count towards days worked",
     sum_paid:"Paid by company", sum_sick:"Sick with report (not paid by company)",
     sgk_wait:"first 2 days unpaid", sgk_paid:"SGK pays 2/3 of daily wage",
@@ -709,7 +758,7 @@ function pad(n){ return String(n).padStart(2,'0'); }
 function ymd(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 
 /* 產生本月假資料：工作日隨機上下班時間，穿插幾天遲到/休假 */
-const LEAVE_MARKS = {}; // key: id|date -> true  （休假，主控端標記，樣本存記憶體）
+const LEAVE_MARKS = {}; // key: id|date -> true  （休假，主控端標記）
 const BIZ_MARKS = {};   // key: id|date -> true  （公出，主控端標記；仍保留 ATT 上/下班時間）
 const SICK_MARKS   = {};  // key: id|date -> 'doc'   （有醫生證明的病假整日標記）
 const ABSENT_MARKS = {};  // key: id|date -> true    （曠職：缺席且沒有醫生證明）
@@ -803,38 +852,6 @@ function leaveLedger(empId){
            sick_doc:acc.sick_doc, personal:acc.personal };
 }
 function remainingLeave(empId){ return leaveLedger(empId).annualLeft; }
-(function seed(){
-  const now=new Date();
-  const y=now.getFullYear(), m=now.getMonth();
-  const days=new Date(y,m+1,0).getDate();
-  rosterIds().forEach((id,ei)=>{
-    for(let day=1; day<=days; day++){
-      const d=new Date(y,m,day);
-      const dow=d.getDay();
-      if(dow===0||dow===6) continue;              // 週末不排
-      if(d>now) continue;                          // 未來不排
-      // 偶爾休假
-      if((day+ei)%9===0){ LEAVE_MARKS[`${id}|${ymd(d)}`]=true; continue; }
-      // 上班時間：多在彈性窗 08:00–08:30，偶爾遲到（>08:40 才算）
-      const late = (day%7===3);
-      const inMinInDay = late ? (8*60 + 45 + (day*3)%8)                 // 08:45~08:52 → 遲到
-                              : (8*60 + (day*7+ei*13)%31);             // 08:00~08:30 → 正常彈性
-      const inDate=new Date(y,m,day, 0, 0, (day*17)%60);
-      inDate.setMinutes(inMinInDay); inDate.setSeconds((day*17)%60);
-      // 應下班 = 上班(鎖窗) + 510 分；多數做滿，少數早退、少數加班
-      const anchored = inMinInDay<480?480:inMinInDay;
-      const shortDay = (day%8===5);   // 偶爾早退 → 紅
-      const otDay    = (day%6===0);   // 偶爾加班
-      const outMinInDay = anchored + 510 + (shortDay? -35 : (otDay? 40 : (day%5)));
-      const outDate=new Date(y,m,day,0,0,(day*23)%60);
-      outDate.setMinutes(outMinInDay);
-      ATT[`${id}|${ymd(d)}`]={ inMs:inDate.getTime(), outMs:outDate.getTime() };
-      // 偶爾公出（仍有上下班時間，另種顏色）
-      if((day+ei)%11===5){ BIZ_MARKS[`${id}|${ymd(d)}`]=true; }
-    }
-  });
-})();
-
 /* ---- 時間工具 ---- */
 function fmtTime(ms){ if(ms==null) return '—'; const d=new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; }
 function shiftMin(hhmm){ const [h,m]=hhmm.split(':').map(Number); return h*60+m; }
@@ -936,39 +953,118 @@ function ipBlockMessage(){
   return t('ip_need_office')+(CLIENT_IP||'?');
 }
 
-/* ---- 登入：帳號＝姓名或四碼編號，密碼＝email ---- */
-function findAccount(input){
-  const v=(input||'').trim().toLowerCase();
+/* ---- 登入：帳號＝姓名（或直接打 email），密碼由 Firebase Authentication 驗證 ---- */
+/* 名字 -> email：讀 Firestore 的 roster/index（此文件開放未登入讀取，只放姓名與信箱） */
+async function resolveEmail(input){
+  const v=(input||'').trim();
   if(!v) return null;
-  if(EMPLOYEES[v]) return EMPLOYEES[v];
-  const ids=Object.keys(EMPLOYEES);
-  for(let i=0;i<ids.length;i++){
-    const e=EMPLOYEES[ids[i]];
-    if((e.name||'').trim().toLowerCase()===v) return e;
-  }
-  return null;
+  if(v.indexOf('@')>=0) return v.toLowerCase();
+  try{
+    const doc=await DB.collection('roster').doc('index').get();
+    const map=(doc.exists && doc.data().map)||{};
+    return map[v.toLowerCase()]||null;
+  }catch(err){ console.error('[roster]',err); return null; }
 }
-function doLogin(){
+async function doLogin(){
   const who=document.getElementById('loginId').value.trim();
-  const pw=document.getElementById('loginPw').value.trim();
+  const pw=document.getElementById('loginPw').value;
   const msg=document.getElementById('loginMsg');
-  msg.textContent='';
-  const acc=findAccount(who);
-  const expected=String((acc&&(acc.pw||acc.email))||'').trim().toLowerCase();
-  if(!acc || !expected || pw.toLowerCase()!==expected){ msg.textContent=t('login_fail'); return; }
-  if(!ipAllowedFor(acc)){ msg.textContent=ipBlockMessage(); return; }
-  CURRENT=acc;
-  document.getElementById('loginView').style.display='none';
-  document.getElementById('appView').style.display='block';
-  document.getElementById('empUI').style.display = CURRENT.role==='employee'?'block':'none';
-  document.getElementById('adminUI').style.display = CURRENT.role==='admin'?'block':'none';
-  document.getElementById('roleBadge').textContent = CURRENT.role==='admin'?t('role_admin'):t('role_emp');
-  renderAll();
+  const btn=document.getElementById('loginBtn');
+  msg.className='msg err'; msg.textContent='';
+  if(!who || !pw){ msg.textContent=t('login_fail'); return; }
+  btn.disabled=true; btn.textContent=t('signing_in');
+  try{
+    const email=await resolveEmail(who);
+    if(!email){ msg.textContent=t('login_fail'); return; }
+    await AUTH.signInWithEmailAndPassword(email,pw);
+    /* 之後交給 onAuthStateChanged 處理 */
+  }catch(err){
+    console.error('[login]',err);
+    msg.textContent = (err.code==='auth/network-request-failed') ? t('net_error') : t('login_fail');
+  }finally{
+    btn.disabled=false; btn.textContent=t('login_btn');
+  }
+}
+
+/* ---- 登入狀態改變 ---- */
+let UNSUBS=[];
+function stopListeners(){ UNSUBS.forEach(fn=>{ try{fn();}catch(e){} }); UNSUBS=[]; }
+AUTH.onAuthStateChanged(async (user)=>{
+  if(!user){
+    stopListeners(); CURRENT=null; EMPLOYEES={};
+    document.getElementById('appView').style.display='none';
+    document.getElementById('loginView').style.display='block';
+    document.getElementById('loginPw').value='';
+    return;
+  }
+  const msg=document.getElementById('loginMsg');
+  try{
+    const snap=await DB.collection('employees').doc(user.uid).get();
+    if(!snap.exists){
+      msg.className='msg err'; msg.textContent=t('no_profile');
+      await AUTH.signOut(); return;
+    }
+    const me={ id:user.uid, ...snap.data() };
+    if(!ipAllowedFor(me)){
+      msg.className='msg err'; msg.textContent=ipBlockMessage();
+      await AUTH.signOut(); return;
+    }
+    CURRENT=me;
+    document.getElementById('loginView').style.display='none';
+    document.getElementById('appView').style.display='block';
+    document.getElementById('empUI').style.display = CURRENT.role==='employee'?'block':'none';
+    document.getElementById('adminUI').style.display = CURRENT.role==='admin'?'block':'none';
+    document.getElementById('roleBadge').textContent = CURRENT.role==='admin'?t('role_admin'):t('role_emp');
+    startListeners();
+  }catch(err){
+    console.error('[profile]',err);
+    msg.className='msg err'; msg.textContent=t('net_error');
+    try{ await AUTH.signOut(); }catch(e){}
+  }
+});
+
+/* ---- 即時同步 ---- */
+function setDbState(txt,cls){
+  const el=document.getElementById('dbState');
+  if(!el) return;
+  el.textContent=txt; el.className='db-state '+(cls||'');
+}
+function startListeners(){
+  stopListeners();
+  setDbState(t('db_loading'),'');
+  UNSUBS.push(DB.collection('employees').onSnapshot(qs=>{
+    const next={};
+    qs.forEach(d=>{ next[d.id]={ id:d.id, ...d.data() }; });
+    EMPLOYEES=next;
+    if(CURRENT && EMPLOYEES[CURRENT.id]) CURRENT=EMPLOYEES[CURRENT.id];
+    setDbState(t('db_ok'),'ok'); renderAll();
+  }, err=>{ console.error('[employees]',err); setDbState(t('db_error'),'bad'); }));
+
+  UNSUBS.push(DB.collection('attendance').onSnapshot(qs=>{
+    Object.keys(ATT).forEach(k=>delete ATT[k]);
+    [LEAVE_MARKS,BIZ_MARKS,SICK_MARKS,ABSENT_MARKS].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));
+    qs.forEach(d=>{
+      const r=d.data(); if(!r||!r.uid||!r.date) return;
+      const key=`${r.uid}|${r.date}`;
+      if(r.inMs!=null||r.outMs!=null) ATT[key]={ inMs:r.inMs??null, outMs:r.outMs??null };
+      if(r.status==='leave')     LEAVE_MARKS[key]=true;
+      if(r.status==='business')  BIZ_MARKS[key]=true;
+      if(r.status==='sick_doc')  SICK_MARKS[key]='doc';
+      if(r.status==='absent')    ABSENT_MARKS[key]=true;
+    });
+    setDbState(t('db_ok'),'ok'); renderAll();
+  }, err=>{ console.error('[attendance]',err); setDbState(t('db_error'),'bad'); }));
+
+  UNSUBS.push(DB.collection('requests').onSnapshot(qs=>{
+    LEAVE_REQUESTS.length=0;
+    qs.forEach(d=>{ const r=d.data(); LEAVE_REQUESTS.push({ reqId:d.id, empId:r.uid, ...r }); });
+    setDbState(t('db_ok'),'ok'); renderAll();
+  }, err=>{ console.error('[requests]',err); setDbState(t('db_error'),'bad'); }));
 }
 document.getElementById('loginBtn').onclick=doLogin;
 document.getElementById('loginPw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
 document.getElementById('loginId').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
-document.getElementById('logoutBtn').onclick=()=>{ CURRENT=null; document.getElementById('appView').style.display='none'; document.getElementById('loginView').style.display='block'; document.getElementById('loginPw').value=''; };
+document.getElementById('logoutBtn').onclick=()=>{ AUTH.signOut(); };
 function toggleLang(){ LANG = LANG==='zh-Hant'?'en':'zh-Hant'; applyI18n(); }
 document.getElementById('langToggle').onclick=toggleLang;
 document.getElementById('langToggleLogin').onclick=toggleLang;
@@ -1034,21 +1130,44 @@ function renderEmpLog(id){
 }
 
 /* 模擬打卡（不寫入 Firebase）*/
-function simClock(kind){
-  const e=CURRENT; const now=new Date();
-  const date=ymd(now); const key=`${e.id}|${date}`;
-  const rec=ATT[key]||{};
-  const nowMs=now.getTime();
-  if(kind==='in'){
-    if(!rec.inMs || nowMs<rec.inMs) rec.inMs=nowMs;   // 保留最早
-  }else{
-    if(!rec.outMs || nowMs>rec.outMs) rec.outMs=nowMs; // 保留最晚
-  }
-  ATT[key]=rec;
+async function simClock(kind){
+  if(!CURRENT) return;
   const flash=document.getElementById('clockFlash');
+  if(IP_LOCK_ENABLED && CURRENT.role!=='admin' && IP_STATE!=='ok'){
+    flash.textContent=ipBlockMessage(); return;
+  }
+  const now=new Date(), date=ymd(now), key=`${CURRENT.id}|${date}`;
+  const rec=Object.assign({},ATT[key]||{});
+  const nowMs=now.getTime();
+  if(kind==='in'){ if(!rec.inMs || nowMs<rec.inMs) rec.inMs=nowMs; }   // 保留最早
+  else           { if(!rec.outMs || nowMs>rec.outMs) rec.outMs=nowMs; } // 保留最晚
+  const payload={ uid:CURRENT.id, date, inMs:rec.inMs??null, outMs:rec.outMs??null };
   flash.textContent=(kind==='in'?t('clocked_in_at'):t('clocked_out_at'))+fmtTime(nowMs);
-  renderEmpLog(e.id);
+  try{
+    await DB.collection('attendance').doc(`${CURRENT.id}_${date}`).set(payload,{merge:true});
+  }catch(err){ console.error('[clock]',err); flash.textContent=t('save_fail'); }
 }
+document.getElementById('changePwBtn').onclick=async ()=>{
+  const v=document.getElementById('newPw').value.trim();
+  const msg=document.getElementById('pwMsg');
+  msg.className='msg err';
+  if(v.length<6){ msg.textContent=t('pw_too_short'); return; }
+  try{
+    await AUTH.currentUser.updatePassword(v);
+    document.getElementById('newPw').value='';
+    msg.className='msg ok'; msg.textContent=t('pw_changed');
+  }catch(err){
+    console.error('[pw]',err);
+    msg.textContent = err.code==='auth/requires-recent-login' ? t('pw_relogin') : t('save_fail');
+  }
+};
+/* 主控端寄重設密碼信 */
+window.sendReset=(id)=>{
+  const e=EMPLOYEES[id]; if(!e||!e.email) return;
+  AUTH.sendPasswordResetEmail(e.email)
+    .then(()=>alert(t('reset_sent')+e.email))
+    .catch(err=>{ console.error('[reset]',err); alert(t('save_fail')); });
+};
 document.getElementById('btnClockIn').onclick=()=>simClock('in');
 document.getElementById('btnClockOut').onclick=()=>simClock('out');
 
@@ -1243,11 +1362,17 @@ document.getElementById('submitReqBtn').onclick=()=>{
   if(!date){ msg.classList.add('err'); msg.textContent=t('need_date'); return; }
   const hrs=calcLeaveHours(s,e);
   if(hrs<=0){ msg.classList.add('err'); msg.textContent=t('bad_time'); return; }
-  LEAVE_REQUESTS.push({ reqId:REQ_SEQ++, empId, type, date, startMin:s, endMin:e, hours:hrs, status:'pending', note:document.getElementById('reqNote').value.trim() });
-  document.getElementById('reqNote').value='';
-  msg.classList.add('ok'); msg.textContent=t('submitted');
-  renderEmpLeavePage(empId);
-  if(CURRENT.role==='admin') renderAllRequests();
+  DB.collection('requests').add({
+    uid:empId, type, date, startMin:s, endMin:e, hours:hrs, status:'pending',
+    note:document.getElementById('reqNote').value.trim(),
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  }).then(()=>{
+    document.getElementById('reqNote').value='';
+    msg.classList.add('ok'); msg.textContent=t('submitted');
+  }).catch(err=>{
+    console.error('[submitReq]',err);
+    msg.classList.add('err'); msg.textContent=t('save_fail');
+  });
 };
 function minToHHMM(min){ return `${pad(Math.floor(min/60))}:${pad(min%60)}`; }
 function reqStatusPill(st){ return `<span class="pill ${st}">${t('rs_'+st)}</span>`; }
@@ -1272,11 +1397,11 @@ function renderAllRequests(){
   const rows=list.map(r=>{
     const emp=EMPLOYEES[r.empId];
     const actions = r.status==='pending'
-      ? `<button class="btn-mini" style="background:var(--good-bg);color:var(--good)" onclick="approveReq(${r.reqId})">${t('approve')}</button>
-         <button class="btn-mini" style="background:#f2e7e5;color:var(--bad)" onclick="rejectReq(${r.reqId})">${t('reject')}</button>`
-      : `<button class="btn-mini" onclick="resetReq(${r.reqId})">${t('reset')}</button>`;
+      ? `<button class="btn-mini" style="background:var(--good-bg);color:var(--good)" onclick="approveReq('${r.reqId}')">${t('approve')}</button>
+         <button class="btn-mini" style="background:#f2e7e5;color:var(--bad)" onclick="rejectReq('${r.reqId}')">${t('reject')}</button>`
+      : `<button class="btn-mini" onclick="resetReq('${r.reqId}')">${t('reset')}</button>`;
     return `<tr>
-      <td>${emp?emp.name:r.empId}<br><span class="ident-meta">#${r.empId}</span></td>
+      <td>${emp?emp.name:r.empId}<br><span class="ident-meta">#${empNoOf(r.empId)}</span></td>
       <td class="type-${r.type}">${typeLabel(r.type)}</td>
       <td class="mono">${r.date}</td>
       <td class="mono">${minToHHMM(r.startMin)}–${minToHHMM(r.endMin)}</td>
@@ -1291,9 +1416,13 @@ function renderAllRequests(){
     ${rows||`<tr><td colspan="8" style="color:#8a94a0">${t('no_requests')}</td></tr>`}`;
 }
 function findReq(reqId){ return LEAVE_REQUESTS.find(r=>r.reqId===reqId); }
-window.approveReq=(reqId)=>{ const r=findReq(reqId); if(r){ r.status='approved'; afterReqChange(r); } };
-window.rejectReq=(reqId)=>{ const r=findReq(reqId); if(r){ r.status='rejected'; afterReqChange(r); } };
-window.resetReq=(reqId)=>{ const r=findReq(reqId); if(r){ r.status='pending'; afterReqChange(r); } };
+function setReqStatus(reqId,status){
+  DB.collection('requests').doc(String(reqId)).update({status})
+    .catch(err=>{ console.error('[review]',err); alert(t('save_fail')); });
+}
+window.approveReq=(reqId)=>setReqStatus(reqId,'approved');
+window.rejectReq =(reqId)=>setReqStatus(reqId,'rejected');
+window.resetReq  =(reqId)=>setReqStatus(reqId,'pending');
 function afterReqChange(r){
   renderAllRequests();
   if(CURRENT && CURRENT.id===r.empId) renderEmpLeavePage(r.empId);
@@ -1340,7 +1469,7 @@ function initCalendarState(){
   // 員工下拉
   const sel=document.getElementById('calEmp');
   const roster=rosterIds();
-  sel.innerHTML=roster.map(id=>`<option value="${id}">${EMPLOYEES[id].name}（#${EMPLOYEES[id].id}）</option>`).join('');
+  sel.innerHTML=roster.map(id=>`<option value="${id}">${EMPLOYEES[id].name}（#${EMPLOYEES[id].empNo||''}）</option>`).join('');
   if(CAL_EMP==null || !EMPLOYEES[CAL_EMP] || EMPLOYEES[CAL_EMP].noAttendance) CAL_EMP=roster[0];
   sel.value=CAL_EMP;
 }
@@ -1501,7 +1630,7 @@ function renderDaily(){
     }
     const active = (id===DRILL_ID)?' style="background:#eef4fc"':'';
     rows+=`<tr class="row-click"${active} onclick="drill('${id}')">
-      <td class="mono">${e.id}</td>
+      <td class="mono">${e.empNo||''}</td>
       <td>${e.name}</td>
       <td class="mono">${inTxt}</td>
       <td>${inState}</td>
@@ -1530,10 +1659,10 @@ document.getElementById('drillEmp').addEventListener('change',e=>{ DRILL_ID=e.ta
 function renderDrill(id){
   const e=EMPLOYEES[id];
   const sel=document.getElementById('drillEmp');
-  sel.innerHTML=rosterIds().map(k=>`<option value="${k}"${k===id?' selected':''}>${EMPLOYEES[k].name}（#${k}）</option>`).join('');
+  sel.innerHTML=rosterIds().map(k=>`<option value="${k}"${k===id?' selected':''}>${EMPLOYEES[k].name}（#${EMPLOYEES[k].empNo||''}）</option>`).join('');
   document.getElementById('drillAvatar').innerHTML=avatarInner(e.photoUrl);
   document.getElementById('drillName').textContent=e.name;
-  document.getElementById('drillMeta').textContent=`#${e.id}`;
+  document.getElementById('drillMeta').textContent=`#${e.empNo||''}`;
   const rows=collectDays(id).map(date=>{
     const st=dayStatus(id,date);
     const rec=ATT[`${id}|${date}`];
@@ -1577,35 +1706,27 @@ function toggleModalTimes(){
 document.getElementById('modalStatus').addEventListener('change',toggleModalTimes);
 document.getElementById('modalCancel').onclick=()=>{ document.getElementById('timeModal').style.display='none'; MODAL_CTX=null; };
 document.getElementById('timeModal').addEventListener('click',e=>{ if(e.target.id==='timeModal'){ e.currentTarget.style.display='none'; MODAL_CTX=null; } });
-document.getElementById('modalSave').onclick=()=>{
+document.getElementById('modalSave').onclick=async ()=>{
   if(!MODAL_CTX) return;
   const {id,date}=MODAL_CTX;
   const st=document.getElementById('modalStatus').value;
-  const key=`${id}|${date}`;
-  delete LEAVE_MARKS[key]; delete BIZ_MARKS[key]; delete SICK_MARKS[key]; delete ABSENT_MARKS[key];
-  if(st==='leave'){
-    LEAVE_MARKS[key]=true;
-  } else if(st==='sick_doc'){
-    SICK_MARKS[key]='doc';
-  } else if(st==='absent'){
-    ABSENT_MARKS[key]=true;
-  } else {
-    if(st==='business') BIZ_MARKS[key]=true;
+  const payload={ uid:id, date, status:(st==='work'?null:st) };
+  if(noPunchDay(st)){
+    payload.inMs=null; payload.outMs=null;
+  }else{
     const parse=(v)=>{ if(!v) return null; const p=v.split(':').map(Number); const d=new Date(date+'T00:00:00'); d.setHours(p[0]||0,p[1]||0,p[2]||0,0); return d.getTime(); };
-    const inMs=parse(document.getElementById('modalIn').value);
-    const outMs=parse(document.getElementById('modalOut').value);
-    const rec=ATT[key]||{};
-    if(inMs!=null) rec.inMs=inMs; if(outMs!=null) rec.outMs=outMs;
-    if(inMs!=null||outMs!=null) ATT[key]=rec;
+    payload.inMs=parse(document.getElementById('modalIn').value);
+    payload.outMs=parse(document.getElementById('modalOut').value);
   }
-  document.getElementById('timeModal').style.display='none'; MODAL_CTX=null;
-  DRILL_ID=id;
-  renderDaily(); renderMonthCalendar();
+  document.getElementById('timeModal').style.display='none'; MODAL_CTX=null; DRILL_ID=id;
+  try{
+    await DB.collection('attendance').doc(`${id}_${date}`).set(payload,{merge:true});
+  }catch(err){ console.error('[modalSave]',err); alert(t('save_fail')); }
 };
 
 /* --- 員工設定（可新增、可改編號/密碼/照片/姓名）--- */
 function empEditForm(id, isNew){
-  const e = isNew ? {id:'',name:'',email:'',pw:'',role:'employee',photoUrl:'',quota:{annual:112,sick:0,personal:0}} : EMPLOYEES[id];
+  const e = isNew ? {id:'',name:'',empNo:'',email:'',role:'employee',photoUrl:'',quota:{annual:112,sick:0,personal:0}} : EMPLOYEES[id];
   const key = isNew ? 'new' : id;
   return `<div class="subcard" id="edit_${key}" style="display:${isNew?'block':'none'};">
       <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
@@ -1619,9 +1740,9 @@ function empEditForm(id, isNew){
         </div>
         <div style="flex:1; min-width:200px;">
           <div class="field"><label>${t('name')}</label><input id="name_${key}" value="${e.name||''}"></div>
-          <div class="field"><label>${t('emp_id_account')}</label><input id="id_${key}" value="${e.id||''}" maxlength="4" inputmode="numeric" placeholder="0003"></div>
+          <div class="field"><label>${t('emp_no')}</label><input id="id_${key}" value="${e.empNo||''}" maxlength="4" inputmode="numeric" placeholder="0003"></div>
           <div class="field"><label>${t('email_pw')}</label><input id="email_${key}" value="${e.email||''}" placeholder="name@company.com" autocapitalize="none"></div>
-          <div class="field"><label>${t('pw_field')}</label><input id="pw_${key}" value="${(e.pw&&e.pw!==e.email)?e.pw:''}" placeholder="—"></div>
+          ${isNew?`<div class="field"><label>${t('init_pw')}</label><input id="pw_new" placeholder="至少 6 碼"></div>`:`<div class="field"><label>${t('pw_reset_hint')}</label><button class="btn-mini" onclick="sendReset('${key}')">${t('send_reset')}</button></div>`}
           <div class="field"><label>${t('role')}</label>
             <select id="role_${key}">
               <option value="employee" ${e.role==='employee'?'selected':''}>${t('role_emp')}</option>
@@ -1647,7 +1768,6 @@ function empEditForm(id, isNew){
 }
 function rosterLabel(e){ return e.noAttendance ? ' · <span style="color:#5b6b78">'+t('no_attendance')+'</span>' : ''; }
 function mailLabel(e){
-  if(!e.email && e.pw) return '<span style="color:#5b6b78">'+t('custom_pw')+'</span>';
   if(!e.email) return '<span style="color:var(--bad)">⚠ '+t('no_email')+'</span>';
   if(PLACEHOLDER_MAIL.test(e.email)) return '<span style="color:var(--warn)">'+e.email+' · '+t('mail_placeholder')+'</span>';
   return e.email;
@@ -1660,7 +1780,7 @@ function renderEmpAdmin(){
     const e=EMPLOYEES[id];
     return `<div class="emp-row">
       <div class="avatar">${avatarInner(e.photoUrl)}</div>
-      <div class="emp-info"><div class="n">${e.name||'(—)'}</div><div class="e">#${e.id} · ${t('role_'+(e.role==='admin'?'admin':'emp'))} · ${mailLabel(e)}${rosterLabel(e)}</div></div>
+      <div class="emp-info"><div class="n">${e.name||'(—)'}</div><div class="e">#${e.empNo||''} · ${t('role_'+(e.role==='admin'?'admin':'emp'))} · ${mailLabel(e)}${rosterLabel(e)}</div></div>
       <button class="btn-mini" onclick="toggleEdit('${id}')">${t('edit')}</button>
     </div>
     ${empEditForm(id,false)}`;
@@ -1682,85 +1802,86 @@ window.handlePhoto=(key,input)=>{
   reader.readAsDataURL(file);
 };
 
-window.saveEmp=(id)=>{
+/* roster/index：登入頁用「姓名 -> email」對照，內容只有姓名與信箱 */
+async function syncRoster(){
+  const map={};
+  Object.values(EMPLOYEES).forEach(e=>{ if(e.name&&e.email) map[e.name.trim().toLowerCase()]=e.email.trim().toLowerCase(); });
+  try{ await DB.collection('roster').doc('index').set({map}); }
+  catch(err){ console.error('[roster sync]',err); }
+}
+
+window.saveEmp=async (id)=>{
   const e=EMPLOYEES[id];
-  const newId=document.getElementById('id_'+id).value.trim();
   const msg=document.getElementById('editMsg_'+id);
-  msg.textContent='';
-  if(!/^[0-9]{4}$/.test(newId)){ msg.textContent=t('id_format'); return; }
-  if(newId!==id && EMPLOYEES[newId]){ msg.textContent=t('id_taken'); return; }
+  msg.className='msg err'; msg.textContent='';
+  const empNo=document.getElementById('id_'+id).value.trim();
   const email=document.getElementById('email_'+id).value.trim();
-  const customPw=document.getElementById('pw_'+id).value.trim();
-  if(!email && !customPw){ msg.textContent=t('bad_email'); return; }
-  const updated={
-    id:newId,
+  if(!/^[0-9]{4}$/.test(empNo)){ msg.textContent=t('id_format'); return; }
+  if(!email){ msg.textContent=t('bad_email'); return; }
+  const patch={
     name:document.getElementById('name_'+id).value.trim()||e.name,
-    email:email,
-    pw:customPw||email,
+    empNo, email:email.toLowerCase(),
     role:document.getElementById('role_'+id).value,
-    empNo:e.empNo,
     photoUrl:document.getElementById('photodata_'+id).value,
     noAttendance:document.getElementById('noatt_'+id).checked,
     quota:{ annual:parseInt(document.getElementById('qa_'+id).value,10)||0, sick:0, personal:0 }
   };
-  if(newId!==id){
-    // 換編號＝換帳號：重新 key，並搬移該員工的打卡/休假/公出資料
-    delete EMPLOYEES[id];
-    reKeyEmployeeData(id,newId);
-    if(CURRENT.id===id) CURRENT=updated;
-  }
-  EMPLOYEES[newId]=updated;
-  if(CURRENT.id===updated.id) CURRENT=updated;
-  renderEmpAdmin(); renderMonthCalendar(); renderDaily(); renderAllRequests();
-  if(CURRENT.role==='employee') renderEmployee();
+  try{
+    await DB.collection('employees').doc(id).set(patch,{merge:true});
+    await syncRoster();
+    msg.className='msg ok'; msg.textContent=t('saved');
+  }catch(err){ console.error('[saveEmp]',err); msg.textContent=t('save_fail'); }
 };
 
-window.addEmployee=()=>{
-  const id=document.getElementById('id_new').value.trim();
+window.addEmployee=async ()=>{
   const msg=document.getElementById('editMsg_new');
-  msg.textContent='';
-  if(!/^[0-9]{4}$/.test(id)){ msg.textContent=t('id_format'); return; }
-  if(EMPLOYEES[id]){ msg.textContent=t('id_taken'); return; }
-  const email=document.getElementById('email_new').value.trim();
-  const customPw=document.getElementById('pw_new').value.trim();
-  if(!email && !customPw){ msg.textContent=t('bad_email'); return; }
-  EMPLOYEES[id]={
-    id, name:document.getElementById('name_new').value.trim()||('Staff '+id),
-    email, pw:customPw||email, role:document.getElementById('role_new').value, empNo:id,
-    photoUrl:document.getElementById('photodata_new').value,
-    noAttendance:document.getElementById('noatt_new').checked,
-    quota:{ annual:parseInt(document.getElementById('qa_new').value,10)||0, sick:0, personal:0 }
-  };
-  document.getElementById('addFormSlot').innerHTML='';
-  renderEmpAdmin(); renderMonthCalendar(); renderDaily();
+  msg.className='msg err'; msg.textContent='';
+  const empNo=document.getElementById('id_new').value.trim();
+  const email=document.getElementById('email_new').value.trim().toLowerCase();
+  const pw=document.getElementById('pw_new').value.trim();
+  const name=document.getElementById('name_new').value.trim();
+  if(!/^[0-9]{4}$/.test(empNo)){ msg.textContent=t('id_format'); return; }
+  if(!name){ msg.textContent=t('need_name'); return; }
+  if(!email){ msg.textContent=t('bad_email'); return; }
+  if(pw.length<6){ msg.textContent=t('pw_too_short'); return; }
+  if(Object.values(EMPLOYEES).some(x=>(x.name||'').trim().toLowerCase()===name.toLowerCase())){
+    msg.textContent=t('name_taken'); return;
+  }
+  msg.className='msg'; msg.textContent=t('creating');
+  try{
+    /* 用第二個 app 建帳號，主控端自己不會被登出 */
+    const ca=creatorAuth();
+    const cred=await ca.createUserWithEmailAndPassword(email,pw);
+    const uid=cred.user.uid;
+    await ca.signOut();
+    await DB.collection('employees').doc(uid).set({
+      name, empNo, email, role:document.getElementById('role_new').value,
+      photoUrl:document.getElementById('photodata_new').value,
+      noAttendance:document.getElementById('noatt_new').checked,
+      quota:{ annual:parseInt(document.getElementById('qa_new').value,10)||0, sick:0, personal:0 }
+    });
+    await syncRoster();
+    document.getElementById('addFormSlot').innerHTML='';
+  }catch(err){
+    console.error('[addEmployee]',err);
+    msg.className='msg err';
+    msg.textContent = err.code==='auth/email-already-in-use' ? t('email_taken')
+                    : err.code==='auth/weak-password'        ? t('pw_too_short')
+                    : t('save_fail');
+  }
 };
 
-window.deleteEmp=(id)=>{
+window.deleteEmp=async (id)=>{
   if(id===CURRENT.id) return; // 不能刪自己
   if(!confirm(t('confirm_delete'))) return;
-  delete EMPLOYEES[id];
-  // 清掉該員工資料
-  Object.keys(ATT).forEach(k=>{ if(k.startsWith(id+'|')) delete ATT[k]; });
-  Object.keys(LEAVE_MARKS).forEach(k=>{ if(k.startsWith(id+'|')) delete LEAVE_MARKS[k]; });
-  Object.keys(BIZ_MARKS).forEach(k=>{ if(k.startsWith(id+'|')) delete BIZ_MARKS[k]; });
-  Object.keys(SICK_MARKS).forEach(k=>{ if(k.startsWith(id+'|')) delete SICK_MARKS[k]; });
-  Object.keys(ABSENT_MARKS).forEach(k=>{ if(k.startsWith(id+'|')) delete ABSENT_MARKS[k]; });
-  for(let i=LEAVE_REQUESTS.length-1;i>=0;i--){ if(LEAVE_REQUESTS[i].empId===id) LEAVE_REQUESTS.splice(i,1); }
-  if(DRILL_ID===id) DRILL_ID=null;
-  if(CAL_EMP===id) CAL_EMP=null;
-  renderEmpAdmin(); renderMonthCalendar(); renderDaily(); renderAllRequests();
+  try{
+    await DB.collection('employees').doc(id).delete();
+    await syncRoster();
+    if(DRILL_ID===id) DRILL_ID=null;
+    if(CAL_EMP===id) CAL_EMP=null;
+    alert(t('deleted_note'));
+  }catch(err){ console.error('[deleteEmp]',err); alert(t('save_fail')); }
 };
-
-function reKeyEmployeeData(oldId,newId){
-  [ATT,LEAVE_MARKS,BIZ_MARKS,SICK_MARKS,ABSENT_MARKS].forEach(store=>{
-    Object.keys(store).forEach(k=>{
-      if(k.startsWith(oldId+'|')){ const nk=newId+'|'+k.split('|')[1]; store[nk]=store[k]; delete store[k]; }
-    });
-  });
-  LEAVE_REQUESTS.forEach(r=>{ if(r.empId===oldId) r.empId=newId; });
-  if(DRILL_ID===oldId) DRILL_ID=newId;
-  if(CAL_EMP===oldId) CAL_EMP=newId;
-}
 
 /* ---- 時鐘 ---- */
 function tickClock(){ const n=new Date(); document.getElementById('liveClock').textContent=`${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`; }
