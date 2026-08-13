@@ -414,6 +414,10 @@
           <span data-i18n="total_days">當月出勤天數</span>
           <b id="calTotal">0</b>
         </div>
+        <div class="cal-total" style="margin-top:8px;">
+          <span data-i18n="total_paid_days">公司支薪天數</span>
+          <b id="calPaid">0</b>
+        </div>
         <p class="hint" id="calBreak"></p>
         <div id="calWarn"></div>
         <div class="legend">
@@ -548,6 +552,7 @@ let IP_STATE  = 'checking';   // checking | ok | blocked | error | off
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDau5hZr9h9Iqt_JfLWH8VtQVHw-0fb4to",
   authDomain: "office-checkin-855a6.firebaseapp.com",
+  databaseURL: "https://office-checkin-855a6-default-rtdb.europe-west1.firebasedatabase.app",
   projectId: "office-checkin-855a6",
   storageBucket: "office-checkin-855a6.firebasestorage.app",
   messagingSenderId: "507140006307",
@@ -591,7 +596,7 @@ const I18N = {
     tab_monthly:"月總表", tab_daily:"每日狀況", tab_emp:"員工設定",
     admin_month_title:"月總表 — 每人每日工時", select_month:"選擇月份",
     lg_green:"出勤完整（有上、下班紀錄）", lg_red:"缺打卡（紅字）", lg_leave:"休假（主控端標記）",
-    month_hint:"出勤天數＝正常上班＋公出。病假（有證明）不算曠職但公司不支薪；沒有醫生證明的缺席一律記為曠職。狀態請在「每日狀況」分頁編輯。",
+    month_hint:"出勤天數＝正常上班＋公出。公司支薪天數另外加上特休、國定假日與病假（有證明）——本公司優於勞基法，有看診證明的病假照給薪。沒有醫生證明的缺席一律記為曠職且不支薪。狀態請在「每日狀況」分頁編輯。",
     admin_daily_title:"每日打卡狀況", select_date:"選擇日期",
     daily_hint:"下方的橫列紀錄可用「選擇員工」切換，或直接點表格任一列。「編輯」可改上／下班時間與狀態。",
     admin_emp_title:"員工資料設定（照片 / 姓名 / 編號）",
@@ -616,7 +621,7 @@ const I18N = {
     from_time:"起", to_time:"迄", submit_request:"送出申請", my_requests:"我的假單",
     admin_leave_title:"請假審核 — 全部假單", filter_status:"狀態篩選",
     f_all:"全部", f_pending:"待審核", f_approved:"已核准", f_rejected:"已駁回",
-    review_hint:"核准後才會扣抵，駁回不扣。病假（有證明）不動特休、直接累計；特休與事假先扣特休剩餘額度，扣完之後超出的時數才記入事假累計。沒有醫生證明的缺席請在「每日狀況」標記為曠職。",
+    review_hint:"核准後才會扣抵，駁回不扣。病假（有證明）不動特休、公司照給薪，只做累計；特休與事假先扣特休剩餘額度，扣完之後超出的時數才記入事假累計。沒有醫生證明的缺席請在「每日狀況」標記為曠職。",
     type_annual:"特休", type_sick:"病假", type_personal:"事假",
     type_sick_doc:"病假（有證明）", type_absent:"曠職",
     m_sick:"病假", st_sick:"病假", st_missing:"缺卡",
@@ -630,6 +635,9 @@ const I18N = {
     q_remaining:"剩餘", q_accrued:"累計已請", done:"完成",
     total_days:"當月出勤天數", sum_counted:"計入", sum_excluded:"未計入", select_emp:"選擇員工",
     st_holiday:"國定假日（有薪）", sum_holiday:"國定假日", half_day:"半天",
+    hire_date:"到職日", tenure:"年資", tenure_y:"年", tenure_m:"個月",
+    not_yet_1y:"未滿一年", anniv_soon:"再 %d 天滿一年", suggest_annual:"建議特休",
+    quota_low:"特休額度低於建議值，建議調成 %h 小時", no_hire_date:"未填到職日",
     no_attendance:"不列入打卡名單（不需打卡）",
     signing_in:"登入中…", net_error:"連不上伺服器，請檢查網路後再試。",
     no_profile:"這個帳號還沒有員工資料，請找主控端設定。",
@@ -643,12 +651,13 @@ const I18N = {
     reset_sent:"重設密碼信已寄出：", deleted_note:"員工資料已刪除。Auth 帳號請到 Firebase Console 的 Authentication 一併移除。",
     change_pw:"更改密碼", new_pw:"新密碼（至少 6 碼）", pw_changed:"密碼已更新。",
     pw_relogin:"為了安全，請先登出重新登入再改密碼。",
-    lg_counted:"有打勾的日子才計入出勤天數",
-    sum_paid:"公司支薪", sum_sick:"病假（有證明，公司不支薪）",
-    sgk_wait:"前2天無給付", sgk_paid:"SGK 給付 2/3 日薪",
+    lg_counted:"打勾＝公司要支薪的日子",
+    sum_paid:"公司支薪", sum_sick:"其中病假（有證明）",
+    sgk_claimable:"可向 SGK 請領", sgk_none:"前2天不可請領",
+    total_paid_days:"公司支薪天數",
     sum_unpaid:"無薪", warn_absent2:"⚠ 本月有連續 2 個工作日曠職。依土耳其勞動法第 25/II-g 條，這可能構成雇主正當解雇事由（不需給資遣費）。實際處理前請先與當地法務／會計確認。",
     warn_absent3:"⚠ 本月曠職已達 3 個工作日。依土耳其勞動法第 25/II-g 條，一個月內累計 3 個工作日曠職也可能構成正當解雇事由。請與當地法務／會計確認。",
-    leave_rule:"病假（有證明）不扣特休，時數直接進累計；公司不支薪，前 2 天無給付，第 3 天起可憑醫生證明向 SGK 請領 2/3 日薪。特休與事假一律先扣特休剩餘額度，扣完之後超出的時數才進事假累計。沒有醫生證明的缺席不算病假，會被記為曠職。",
+    leave_rule:"病假（有證明）不扣特休、公司照給薪，時數只做累計；第 3 天起公司可再向 SGK 請領 2/3 日薪。特休與事假一律先扣特休剩餘額度，扣完之後超出的時數才進事假累計。沒有醫生證明的缺席不算病假，會被記為曠職且不支薪。",
     date:"日期", employee:"員工", note_opt:"備註（選填）",
     am:"上午", pm:"下午", dp_hour:"時", dp_minute:"分", dp_period:"上午/下午"
   },
@@ -672,7 +681,7 @@ const I18N = {
     tab_monthly:"Monthly", tab_daily:"Daily", tab_emp:"Employees",
     admin_month_title:"Monthly overview — daily hours per person", select_month:"Month",
     lg_green:"Complete attendance (clock-in & clock-out on file)", lg_red:"Missing punch (red)", lg_leave:"Leave (marked by admin)",
-    month_hint:"Days worked = normal attendance + business trips. Sick leave with a report is not absenteeism but is not paid by the company; any absence without a doctor's report is recorded as absenteeism. Edit statuses on the Daily tab.",
+    month_hint:"Days worked = normal attendance + business trips. Paid days also include annual leave, public holidays and sick leave with a doctor's report — this office pays for certified sick leave, which is better than the statutory minimum. An absence without a report is recorded as unpaid absenteeism. Edit statuses on the Daily tab.",
     admin_daily_title:"Daily attendance", select_date:"Date",
     daily_hint:"Switch the row-style log below with the employee selector, or just click any row here. Use Edit to change times or status.",
     admin_emp_title:"Employee profiles (photo / name / ID)",
@@ -711,6 +720,9 @@ const I18N = {
     q_remaining:"Remaining", q_accrued:"Accrued", done:"Done",
     total_days:"Days worked this month", sum_counted:"Counted", sum_excluded:"Not counted", select_emp:"Select employee",
     st_holiday:"Public holiday (paid)", sum_holiday:"Public holidays", half_day:"half day",
+    hire_date:"Start date", tenure:"Tenure", tenure_y:"y", tenure_m:"m",
+    not_yet_1y:"under 1 year", anniv_soon:"1 year in %d days", suggest_annual:"Suggested annual",
+    quota_low:"Annual leave is below the suggested %h hours", no_hire_date:"No start date",
     no_attendance:"Not on the clock-in roster",
     signing_in:"Signing in…", net_error:"Can't reach the server. Check your connection and try again.",
     no_profile:"This account has no employee profile yet. Ask the admin to set it up.",
@@ -724,12 +736,13 @@ const I18N = {
     reset_sent:"Password reset email sent to ", deleted_note:"Employee profile deleted. Remove the Auth user in the Firebase Console as well.",
     change_pw:"Change password", new_pw:"New password (min 6 chars)", pw_changed:"Password updated.",
     pw_relogin:"For security, please sign out and back in before changing your password.",
-    lg_counted:"Only ticked days count towards days worked",
-    sum_paid:"Paid by company", sum_sick:"Sick with report (not paid by company)",
-    sgk_wait:"first 2 days unpaid", sgk_paid:"SGK pays 2/3 of daily wage",
+    lg_counted:"A tick means the company pays for that day",
+    sum_paid:"Paid by company", sum_sick:"of which sick (with report)",
+    sgk_claimable:"claimable from SGK", sgk_none:"first 2 days not claimable",
+    total_paid_days:"Paid days this month",
     sum_unpaid:"Unpaid", warn_absent2:"⚠ Two consecutive working days of absence this month. Under Article 25/II-g of the Turkish Labour Law this may give the employer just cause for termination without severance. Confirm with local legal/accounting before acting.",
     warn_absent3:"⚠ Three working days of absence this month. Under Article 25/II-g of the Turkish Labour Law three working days of absence within one month may also give just cause for termination. Confirm with local legal/accounting.",
-    leave_rule:"Sick leave with a doctor's report does not touch your annual balance — the hours go straight to its running total. The company does not pay those days: the first 2 days carry no payment at all, and from the 3rd day SGK pays 2/3 of the daily wage against the report. Annual and personal leave draw on your remaining annual balance first. An absence without a doctor's report is not sick leave — it is recorded as absenteeism.",
+    leave_rule:"Sick leave with a doctor's report is paid by the company and does not touch your annual balance — the hours are only tallied. From the 3rd day the company can also claim 2/3 of the daily wage from SGK. Annual and personal leave draw on your remaining annual balance first. An absence without a doctor's report is not sick leave — it is unpaid absenteeism.",
     date:"Date", employee:"Employee", note_opt:"Note (optional)",
     am:"AM", pm:"PM", dp_hour:"Hour", dp_minute:"Min", dp_period:"AM/PM"
   }
@@ -819,6 +832,49 @@ function dayStatus(id,date){
 /* 沒有出勤紀錄的日子（病假、曠職、休假）不顯示上下班時間 */
 function noPunchDay(st){ return st==='leave'||st==='sick_doc'||st==='absent'; }
 /* 需要打卡的員工名單（noAttendance:true 的人不列入） */
+/* ---- 到職日 / 年資 ----
+   土耳其勞動法的特休級距：滿 1 年未滿 5 年 14 天、5–15 年 20 天、超過 15 年 26 天。 */
+function tenureMonths(hireDate){
+  if(!hireDate) return null;
+  const h=new Date(hireDate+'T00:00:00'); if(isNaN(h)) return null;
+  const n=new Date();
+  let mo=(n.getFullYear()-h.getFullYear())*12+(n.getMonth()-h.getMonth());
+  if(n.getDate()<h.getDate()) mo--;
+  return Math.max(0,mo);
+}
+function tenureText(hireDate){
+  const mo=tenureMonths(hireDate);
+  if(mo==null) return t('no_hire_date');
+  const y=Math.floor(mo/12), m=mo%12;
+  return (y?`${y}${t('tenure_y')} `:'')+`${m}${t('tenure_m')}`;
+}
+function suggestedAnnualDays(hireDate){
+  const mo=tenureMonths(hireDate);
+  if(mo==null || mo<12) return 0;
+  const y=Math.floor(mo/12);
+  return y>=15 ? 26 : (y>=5 ? 20 : 14);
+}
+function daysToAnniversary(hireDate){
+  const mo=tenureMonths(hireDate);
+  if(mo==null || mo>=12) return null;
+  const h=new Date(hireDate+'T00:00:00');
+  const target=new Date(h.getFullYear()+1,h.getMonth(),h.getDate());
+  return Math.ceil((target-new Date())/86400000);
+}
+function tenureBadge(e){
+  const mo=tenureMonths(e.hireDate);
+  if(mo==null) return `<span style="color:var(--warn)">⚠ ${t('no_hire_date')}</span>`;
+  const txt=`${e.hireDate} · ${t('tenure')} ${tenureText(e.hireDate)}`;
+  if(mo<12){
+    const d=daysToAnniversary(e.hireDate);
+    return `${txt} · <span style="color:#5b6b78">${t('anniv_soon').replace('%d',d)}</span>`;
+  }
+  const sug=suggestedAnnualDays(e.hireDate);
+  const cur=(e.quota&&e.quota.annual)||0;
+  const warn=(cur < sug*HOURS_PER_DAY)
+    ? ` · <span style="color:var(--warn)">⚠ ${t('quota_low').replace('%h', sug*HOURS_PER_DAY)}</span>` : '';
+  return `${txt} · ${t('suggest_annual')} ${sug} ${t('days_unit')}${warn}`;
+}
 function rosterIds(){ return Object.keys(EMPLOYEES).filter(k=>!EMPLOYEES[k].noAttendance); }
 function quotaOf(empId,type){ const e=EMPLOYEES[empId]; return (e&&e.quota&&e.quota[type]!=null)?e.quota[type]:0; }
 /* 已核准的請假時數（依類別加總，未分攤前的原始值） */
@@ -1508,11 +1564,11 @@ function renderMonthCalendar(){
     if(st==='leave'){
       cnt.leave++; eff='leave';
       cls+=' leave'; badge='<span class="cal-badge leave"></span>';
-      hrsHtml=`<span class="cal-hrs">${t('st_leave')}</span>`;
+      hrsHtml=`<span class="cal-hrs">${t('st_leave')} ✓</span>`;
     } else if(st==='sick_doc'){
       cnt.sick_doc++; eff='sick_doc';
       cls+=' sick'; badge='<span class="cal-badge sick"></span>';
-      hrsHtml=`<span class="cal-hrs">${t('st_sick_doc')}</span>`;
+      hrsHtml=`<span class="cal-hrs">${t('st_sick_doc')} ✓</span>`;
     } else if(st==='absent'){
       cnt.absent++; eff='absent';
       cls+=' absent'; badge='<span class="cal-badge absent"></span>';
@@ -1530,7 +1586,7 @@ function renderMonthCalendar(){
       if(h.half) cnt.holidayHalf++; else cnt.holiday++;
       eff='holiday';
       cls+=' holiday'; badge='<span class="cal-badge holiday"></span>';
-      hrsHtml=`<span class="cal-hrs">${holidayShort(h)}</span>`;
+      hrsHtml=`<span class="cal-hrs">${holidayShort(h)} ✓</span>`;
     } else if(rec && rec.inMs && !rec.outMs && dd<=now){
       cnt.missing++; eff='missing';
       cls+=' red'; badge='<span class="cal-badge red"></span>';
@@ -1566,12 +1622,14 @@ function renderMonthCalendar(){
   }
 
   const days=cnt.work+cnt.biz;
+  const paid=cnt.work+cnt.biz+cnt.leave+cnt.holiday+cnt.holidayHalf+cnt.sick_doc;
   document.getElementById('calTotal').textContent=`${days} ${t('days_unit')}`;
+  document.getElementById('calPaid').textContent=`${paid} ${t('days_unit')}`;
   const co = (LANG==='en')?': ':'：', sep=(LANG==='en')?'  |  ':'　｜　';
   const halfTxt = cnt.holidayHalf?` +${cnt.holidayHalf} ${t('half_day')}`:'';
-  const d1=`${t('sum_paid')}${co}${t('m_work')} ${cnt.work} · ${t('st_business')} ${cnt.biz} · ${t('st_leave')} ${cnt.leave} · ${t('sum_holiday')} ${cnt.holiday}${halfTxt}`;
+  const d1=`${t('sum_paid')}${co}${t('m_work')} ${cnt.work} · ${t('st_business')} ${cnt.biz} · ${t('st_leave')} ${cnt.leave} · ${t('sum_holiday')} ${cnt.holiday}${halfTxt} · ${t('st_sick_doc')} ${cnt.sick_doc}`;
   const pO=(LANG==='en')?' (':'（', pC=(LANG==='en')?')':'）';
-  const d2=`${t('sum_sick')}${co}${cnt.sick_doc} ${t('days_unit')}${pO}${t('sgk_wait')} ${sickWait} · ${t('sgk_paid')} ${sickPaid}${pC}`;
+  const d2=`${t('sum_sick')}${co}${cnt.sick_doc} ${t('days_unit')}${pO}${t('sgk_claimable')} ${sickPaid} · ${t('sgk_none')} ${sickWait}${pC}`;
   const d3=`${t('sum_unpaid')}${co}${t('st_absent')} ${cnt.absent} · ${t('st_missing')} ${cnt.missing}`;
   document.getElementById('calBreak').innerHTML = d1+sep+d2+sep+d3;
 
@@ -1726,7 +1784,7 @@ document.getElementById('modalSave').onclick=async ()=>{
 
 /* --- 員工設定（可新增、可改編號/密碼/照片/姓名）--- */
 function empEditForm(id, isNew){
-  const e = isNew ? {id:'',name:'',empNo:'',email:'',role:'employee',photoUrl:'',quota:{annual:112,sick:0,personal:0}} : EMPLOYEES[id];
+  const e = isNew ? {id:'',name:'',empNo:'',email:'',role:'employee',photoUrl:'',hireDate:'',quota:{annual:112,sick:0,personal:0}} : EMPLOYEES[id];
   const key = isNew ? 'new' : id;
   return `<div class="subcard" id="edit_${key}" style="display:${isNew?'block':'none'};">
       <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
@@ -1753,6 +1811,7 @@ function empEditForm(id, isNew){
             <input type="checkbox" id="noatt_${key}" ${e.noAttendance?'checked':''} style="width:auto;margin:0">
             <span>${t('no_attendance')}</span>
           </label></div>
+          <div class="field"><label>${t('hire_date')}</label><input type="date" id="hire_${key}" value="${e.hireDate||''}"></div>
           <div class="field"><label>${t('q_annual')}</label><input id="qa_${key}" type="number" min="0" step="8" value="${(e.quota&&e.quota.annual!=null)?e.quota.annual:112}"></div>
         </div>
       </div>
@@ -1780,7 +1839,7 @@ function renderEmpAdmin(){
     const e=EMPLOYEES[id];
     return `<div class="emp-row">
       <div class="avatar">${avatarInner(e.photoUrl)}</div>
-      <div class="emp-info"><div class="n">${e.name||'(—)'}</div><div class="e">#${e.empNo||''} · ${t('role_'+(e.role==='admin'?'admin':'emp'))} · ${mailLabel(e)}${rosterLabel(e)}</div></div>
+      <div class="emp-info"><div class="n">${e.name||'(—)'}</div><div class="e">#${e.empNo||''} · ${t('role_'+(e.role==='admin'?'admin':'emp'))} · ${mailLabel(e)}${rosterLabel(e)}<br>${tenureBadge(e)}</div></div>
       <button class="btn-mini" onclick="toggleEdit('${id}')">${t('edit')}</button>
     </div>
     ${empEditForm(id,false)}`;
@@ -1824,6 +1883,7 @@ window.saveEmp=async (id)=>{
     role:document.getElementById('role_'+id).value,
     photoUrl:document.getElementById('photodata_'+id).value,
     noAttendance:document.getElementById('noatt_'+id).checked,
+    hireDate:document.getElementById('hire_'+id).value||'',
     quota:{ annual:parseInt(document.getElementById('qa_'+id).value,10)||0, sick:0, personal:0 }
   };
   try{
@@ -1858,6 +1918,7 @@ window.addEmployee=async ()=>{
       name, empNo, email, role:document.getElementById('role_new').value,
       photoUrl:document.getElementById('photodata_new').value,
       noAttendance:document.getElementById('noatt_new').checked,
+      hireDate:document.getElementById('hire_new').value||'',
       quota:{ annual:parseInt(document.getElementById('qa_new').value,10)||0, sick:0, personal:0 }
     });
     await syncRoster();
