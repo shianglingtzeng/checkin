@@ -342,6 +342,14 @@
 
       <div class="card">
         <p class="section-title" data-i18n="my_log">我的考勤紀錄</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px;">
+          <div class="field" style="max-width:170px;margin:0;">
+            <label data-i18n="export_month">下載月份</label>
+            <input type="month" id="empYm">
+          </div>
+          <button class="btn-mini" style="padding:10px 14px" id="empPdfBtn" data-i18n="export_mine">下載我的紀錄 PDF</button>
+        </div>
+
         <div class="tbl-scroll">
           <table id="empLogTable"></table>
         </div>
@@ -450,9 +458,18 @@
           <div><div class="ident-name" id="drillName">—</div><div class="ident-meta" id="drillMeta">—</div></div>
         </div>
         <p class="section-title" data-i18n="row_log">橫列式打卡紀錄</p>
-        <div class="field" style="max-width:220px;">
-          <label data-i18n="select_emp">選擇員工</label>
-          <select id="drillEmp"></select>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+          <div class="field" style="max-width:220px;margin:0;">
+            <label data-i18n="select_emp">選擇員工</label>
+            <select id="drillEmp"></select>
+          </div>
+          <div class="field" style="max-width:170px;margin:0;">
+            <label data-i18n="export_month">下載月份</label>
+            <input type="month" id="drillYm">
+          </div>
+          <button class="btn-mini" style="padding:10px 14px" id="drillPdfBtn" data-i18n="export_one">下載這位員工 PDF</button>
+          <button class="btn-mini" style="padding:10px 14px" id="drillPdfAllBtn" data-i18n="export_all">下載全部員工 PDF</button>
+          <button class="btn-mini" style="padding:10px 14px" id="drillCsvBtn" data-i18n="export_csv">CSV</button>
         </div>
         <div class="tbl-scroll"><table id="drillTable"></table></div>
       </div>
@@ -635,6 +652,12 @@ const I18N = {
     q_remaining:"剩餘", q_accrued:"累計已請", done:"完成",
     total_days:"當月出勤天數", sum_counted:"計入", sum_excluded:"未計入", select_emp:"選擇員工",
     st_holiday:"國定假日（有薪）", sum_holiday:"國定假日", half_day:"半天",
+    export_month:"下載月份", export_one:"⬇ 下載這位員工 PDF", export_all:"⬇ 下載全部員工 PDF",
+    export_mine:"⬇ 下載我的紀錄 PDF", export_csv:"CSV（給會計）",
+    report_title:"員工考勤紀錄表", sign_emp:"員工簽名", sign_admin:"主管簽名",
+    generated_at:"產生時間", popup_blocked:"瀏覽器擋掉了新視窗，請允許此網站的彈出視窗後再試一次。", csv_paid:"公司支薪", csv_summary:"月統計",
+    csv_file:"打卡紀錄", yes:"是", no:"否",
+    th_emp_no:"員工工號", th_emp_name:"員工姓名",
     hire_date:"到職日", tenure:"年資", tenure_y:"年", tenure_m:"個月",
     not_yet_1y:"未滿一年", anniv_soon:"再 %d 天滿一年", suggest_annual:"建議特休",
     quota_low:"特休額度低於建議值，建議調成 %h 小時", no_hire_date:"未填到職日",
@@ -720,6 +743,12 @@ const I18N = {
     q_remaining:"Remaining", q_accrued:"Accrued", done:"Done",
     total_days:"Days worked this month", sum_counted:"Counted", sum_excluded:"Not counted", select_emp:"Select employee",
     st_holiday:"Public holiday (paid)", sum_holiday:"Public holidays", half_day:"half day",
+    export_month:"Month", export_one:"⬇ This employee (PDF)", export_all:"⬇ Everyone (PDF)",
+    export_mine:"⬇ My log (PDF)", export_csv:"CSV",
+    report_title:"Attendance Record", sign_emp:"Employee signature", sign_admin:"Manager signature",
+    generated_at:"Generated", popup_blocked:"Your browser blocked the new window. Allow pop-ups for this site and try again.", csv_paid:"Paid by company", csv_summary:"monthly summary",
+    csv_file:"attendance", yes:"Yes", no:"No",
+    th_emp_no:"Staff ID", th_emp_name:"Name",
     hire_date:"Start date", tenure:"Tenure", tenure_y:"y", tenure_m:"m",
     not_yet_1y:"under 1 year", anniv_soon:"1 year in %d days", suggest_annual:"Suggested annual",
     quota_low:"Annual leave is below the suggested %h hours", no_hire_date:"No start date",
@@ -1712,8 +1741,228 @@ function renderDaily(){
 }
 document.getElementById('dailyDate').addEventListener('change',renderDaily);
 document.getElementById('drillEmp').addEventListener('change',e=>{ DRILL_ID=e.target.value; renderDaily(); });
+document.getElementById('drillYm').value=currentYm();
+document.getElementById('empYm').value=currentYm();
+document.getElementById('drillPdfBtn').onclick=()=>{ if(DRILL_ID) exportOnePdf(DRILL_ID,'drillYm'); };
+document.getElementById('drillPdfAllBtn').onclick=()=>exportAllPdf('drillYm');
+document.getElementById('drillCsvBtn').onclick=()=>exportAll('drillYm');
+document.getElementById('empPdfBtn').onclick=()=>{ if(CURRENT) exportOnePdf(CURRENT.id,'empYm'); };
 
 /* --- 個人 drilldown（橫列打卡紀錄，如附件3）--- */
+/* ============================================================
+   打卡紀錄匯出（CSV，Excel 可直接開）
+   ============================================================ */
+function csvCell(v){
+  const t=String(v==null?'':v);
+  return /[",\n]/.test(t) ? '"'+t.replace(/"/g,'""')+'"' : t;
+}
+function statusTextFor(id,date){
+  const st=dayStatus(id,date);
+  if(st==='leave')    return t('st_leave');
+  if(st==='sick_doc') return t('st_sick_doc');
+  if(st==='absent')   return t('st_absent');
+  if(st==='business') return t('st_business');
+  const h=holidayOf(date);
+  const rec=ATT[`${id}|${date}`];
+  if(!rec && h) return holidayShort(h);
+  if(rec && rec.inMs && !rec.outMs) return t('st_missing');
+  if(rec && rec.inMs) return isLate(rec.inMs)?t('st_late'):t('st_normal');
+  return t('st_off');
+}
+/* 這一天公司要不要支薪 */
+function isPaidDay(id,date){
+  const st=dayStatus(id,date);
+  if(st==='absent') return false;
+  if(st==='leave'||st==='sick_doc'||st==='business') return true;
+  const rec=ATT[`${id}|${date}`];
+  if(rec && rec.inMs && rec.outMs) return true;
+  if(!rec && holidayOf(date)) return true;
+  return false;
+}
+function monthDates(ym){
+  const [y,m]=ym.split('-').map(Number);
+  const dim=new Date(y,m,0).getDate();
+  const out=[];
+  for(let d=1;d<=dim;d++) out.push(`${y}-${pad(m)}-${pad(d)}`);
+  return out;
+}
+function buildCsv(ids,ym){
+  const head=[t('th_emp_no'),t('th_emp_name'),t('th_date'),t('th_weekday'),
+              t('th_in'),t('th_out'),t('th_hours'),t('th_status'),t('csv_paid')];
+  const lines=[head.map(csvCell).join(',')];
+  ids.forEach(id=>{
+    const e=EMPLOYEES[id]; if(!e) return;
+    const cnt={work:0,paid:0,absent:0,sick:0,leave:0};
+    monthDates(ym).forEach(date=>{
+      const st=dayStatus(id,date);
+      const rec=ATT[`${id}|${date}`];
+      let inTxt='',outTxt='',hrsTxt='';
+      if(!noPunchDay(st) && rec && rec.inMs){
+        inTxt=fmtTime(rec.inMs);
+        outTxt=rec.outMs?fmtTime(rec.outMs):'';
+        if(rec.outMs) hrsTxt=fmtHMS(hoursBetween(rec.inMs,rec.outMs));
+      }
+      const paid=isPaidDay(id,date);
+      if(paid) cnt.paid++;
+      if(st==='work' && rec && rec.inMs && rec.outMs) cnt.work++;
+      if(st==='business') cnt.work++;
+      if(st==='absent') cnt.absent++;
+      if(st==='sick_doc') cnt.sick++;
+      if(st==='leave') cnt.leave++;
+      lines.push([e.empNo||'',e.name||'',date,weekdayLabel(date),inTxt,outTxt,hrsTxt,
+                  statusTextFor(id,date), paid?t('yes'):t('no')].map(csvCell).join(','));
+    });
+    lines.push('');
+    lines.push([`${e.name} ${t('csv_summary')}`,
+                `${t('total_days')}: ${cnt.work}`,
+                `${t('total_paid_days')}: ${cnt.paid}`,
+                `${t('st_sick_doc')}: ${cnt.sick}`,
+                `${t('st_leave')}: ${cnt.leave}`,
+                `${t('st_absent')}: ${cnt.absent}`].map(csvCell).join(','));
+    lines.push('');
+  });
+  return lines.join('\r\n');
+}
+function downloadCsv(ids,ym,fname){
+  if(!ids.length) return;
+  const blob=new Blob(['\ufeff'+buildCsv(ids,ym)],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=fname; document.body.appendChild(a); a.click();
+  document.body.removeChild(a); setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function currentYm(){ const n=new Date(); return `${n.getFullYear()}-${pad(n.getMonth()+1)}`; }
+/* ---- PDF：開一個列印用視窗，使用者在列印對話框選「另存為 PDF」 ---- */
+function monthTitle(ym){
+  const [y,m]=ym.split('-').map(Number);
+  return LANG==='zh-Hant' ? `${y} 年 ${m} 月` :
+    new Date(y,m-1,1).toLocaleDateString('en-US',{year:'numeric',month:'long'});
+}
+function empReportHtml(id,ym){
+  const e=EMPLOYEES[id]; if(!e) return '';
+  const cnt={work:0,paid:0,sick:0,leave:0,absent:0,missing:0,holiday:0};
+  const rows=monthDates(ym).map(date=>{
+    const st=dayStatus(id,date);
+    const rec=ATT[`${id}|${date}`];
+    let inTxt='—',outTxt='—',hrsTxt='—';
+    if(!noPunchDay(st) && rec && rec.inMs){
+      inTxt=fmtTime(rec.inMs);
+      outTxt=rec.outMs?fmtTime(rec.outMs):'—';
+      if(rec.outMs) hrsTxt=fmtHMS(hoursBetween(rec.inMs,rec.outMs));
+    }
+    const paid=isPaidDay(id,date);
+    if(paid) cnt.paid++;
+    if(st==='absent') cnt.absent++;
+    else if(st==='sick_doc') cnt.sick++;
+    else if(st==='leave') cnt.leave++;
+    else if(st==='business') cnt.work++;
+    else if(rec && rec.inMs && rec.outMs) cnt.work++;
+    else if(rec && rec.inMs) cnt.missing++;
+    else if(holidayOf(date)) cnt.holiday++;
+    const d=new Date(date+'T00:00:00'), weekend=(d.getDay()===0||d.getDay()===6);
+    return `<tr class="${weekend?'we':''}">
+      <td class="mono">${date}</td><td>${weekdayLabel(date)}</td>
+      <td class="mono">${inTxt}</td><td class="mono">${outTxt}</td>
+      <td class="mono">${hrsTxt}</td><td>${statusTextFor(id,date)}</td>
+      <td class="c">${paid?'●':''}</td>
+    </tr>`;
+  }).join('');
+  const box=(label,val)=>`<div class="box"><div class="bl">${label}</div><div class="bv">${val}</div></div>`;
+  const tenure=e.hireDate?`${t('hire_date')} ${e.hireDate} · ${t('tenure')} ${tenureText(e.hireDate)}`:'';
+  return `
+  <section>
+    <div class="rhead">
+      <div>
+        <div class="rtitle">${t('report_title')}</div>
+        <div class="rsub">${monthTitle(ym)}</div>
+      </div>
+      <div class="rwho">
+        <div class="rname">${e.name}</div>
+        <div class="rmeta">#${e.empNo||''}${e.email?' · '+e.email:''}</div>
+        <div class="rmeta">${tenure}</div>
+      </div>
+    </div>
+    <div class="boxes">
+      ${box(t('total_days'),cnt.work)}
+      ${box(t('total_paid_days'),cnt.paid)}
+      ${box(t('st_sick_doc'),cnt.sick)}
+      ${box(t('st_leave'),cnt.leave)}
+      ${box(t('sum_holiday'),cnt.holiday)}
+      ${box(t('st_absent'),cnt.absent)}
+      ${box(t('st_missing'),cnt.missing)}
+    </div>
+    <table>
+      <thead><tr>
+        <th>${t('th_date')}</th><th>${t('th_weekday')}</th><th>${t('th_in')}</th>
+        <th>${t('th_out')}</th><th>${t('th_hours')}</th><th>${t('th_status')}</th><th>${t('csv_paid')}</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div class="sign">
+      <div><span>${t('sign_emp')}</span></div>
+      <div><span>${t('sign_admin')}</span></div>
+    </div>
+    <div class="foot">${t('generated_at')} ${ymd(new Date())} ${fmtTime(Date.now())}</div>
+  </section>`;
+}
+function exportPdf(ids,ym){
+  if(!ids.length) return;
+  const body=ids.map(id=>empReportHtml(id,ym)).join('');
+  const win=window.open('','_blank');
+  if(!win){ alert(t('popup_blocked')); return; }
+  win.document.write(`<!DOCTYPE html><html lang="${LANG}"><head><meta charset="utf-8">
+  <title>${t('report_title')} ${ym}</title>
+  <style>
+    @page{ size:A4; margin:14mm 12mm; }
+    *{ box-sizing:border-box; }
+    body{ font-family:'Noto Sans TC','Microsoft JhengHei',-apple-system,'Segoe UI',Arial,sans-serif;
+          color:#1d2b36; margin:0; font-size:11px; }
+    .mono{ font-family:'SFMono-Regular',Consolas,monospace; }
+    section{ page-break-after:always; padding:0 0 6px; }
+    section:last-child{ page-break-after:auto; }
+    .rhead{ display:flex; justify-content:space-between; align-items:flex-start;
+            border-bottom:2px solid #123a6b; padding-bottom:8px; margin-bottom:12px; }
+    .rtitle{ font-size:17px; font-weight:800; color:#123a6b; }
+    .rsub{ font-size:12px; color:#5b6b78; margin-top:2px; }
+    .rwho{ text-align:right; }
+    .rname{ font-size:15px; font-weight:800; }
+    .rmeta{ font-size:10px; color:#5b6b78; }
+    .boxes{ display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
+    .box{ flex:1; min-width:72px; border:1px solid #d7dee6; border-radius:5px; padding:6px 8px; text-align:center; }
+    .bl{ font-size:9px; color:#5b6b78; }
+    .bv{ font-size:16px; font-weight:800; color:#123a6b; }
+    table{ width:100%; border-collapse:collapse; }
+    th,td{ border:1px solid #d7dee6; padding:3px 6px; text-align:left; }
+    th{ background:#eef2f7; font-size:10px; }
+    thead{ display:table-header-group; }
+    tr.we td{ background:#fafbfc; color:#7b8794; }
+    td.c{ text-align:center; }
+    .sign{ display:flex; gap:40px; margin-top:22px; }
+    .sign div{ flex:1; border-top:1px solid #9aa7b2; padding-top:4px; font-size:10px; color:#5b6b78; }
+    .foot{ margin-top:10px; font-size:9px; color:#8b97a2; }
+    @media screen{ body{ padding:20px; background:#f4f6f8; } section{ background:#fff; padding:24px; margin:0 auto 18px; max-width:820px; box-shadow:0 1px 4px rgba(0,0,0,.1); } }
+  </style></head><body>${body}</body></html>`);
+  win.document.close();
+  setTimeout(()=>{ win.focus(); win.print(); },400);
+}
+window.exportOnePdf=(id,ymInputId)=>{
+  const ym=document.getElementById(ymInputId).value||currentYm();
+  exportPdf([id],ym);
+};
+window.exportAllPdf=(ymInputId)=>{
+  const ym=document.getElementById(ymInputId).value||currentYm();
+  exportPdf(rosterIds(),ym);
+};
+window.exportOne=(id,ymInputId)=>{
+  const ym=document.getElementById(ymInputId).value||currentYm();
+  const e=EMPLOYEES[id]; if(!e) return;
+  downloadCsv([id],ym,`${t('csv_file')}_${e.name}_${ym}.csv`);
+};
+window.exportAll=(ymInputId)=>{
+  const ym=document.getElementById(ymInputId).value||currentYm();
+  downloadCsv(rosterIds(),ym,`${t('csv_file')}_ALL_${ym}.csv`);
+};
+
 function renderDrill(id){
   const e=EMPLOYEES[id];
   const sel=document.getElementById('drillEmp');
